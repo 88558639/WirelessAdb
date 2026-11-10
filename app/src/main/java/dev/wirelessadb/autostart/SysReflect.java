@@ -63,6 +63,22 @@ final class SysReflect {
         return null;
     }
 
+    /**
+     * 取 system_server 的系统 Context，不依赖 AMS 实例。
+     * onSystemServerStarting 阶段 AMS 还没 ready，此时只有 ActivityThread 这条路。
+     */
+    static Context systemContext() {
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object thread = callStatic(at, "currentActivityThread", new Class<?>[]{});
+            if (thread == null) return null;
+            Object ctx = call(thread, "getSystemContext", new Class<?>[]{});
+            return ctx instanceof Context ? (Context) ctx : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     /** 包含父类声明的所有同名方法（hookAllMethods 的等价物）。 */
     static List<Method> findMethods(Class<?> type, String name) {
         List<Method> out = new ArrayList<>();

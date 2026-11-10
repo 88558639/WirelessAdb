@@ -87,6 +87,22 @@ public final class WirelessAdbHook extends XposedModule {
         if (!capSystem) {
             logLine("[警告] 当前框架不支持 system_server hook；请确认 LSPosed 版本 >= 2.1.0 且作用域勾选系统框架");
         }
+        // 模块一加载就写标记：这是「本次开机模块已加载」的最早可信时刻，
+        // 比 AMS.systemReady 早得多，界面不用等到系统完全起来才显示就绪。
+        markLoadedEarly();
+    }
+
+    /**
+     * 尽早写加载标记。onModuleLoaded 时 systemContext 还没到手，
+     * 先尝试从 ActivityThread 拿系统 Context；拿不到就等 onSystemReady 补写。
+     */
+    private void markLoadedEarly() {
+        try {
+            Context ctx = systemContext != null ? systemContext : SysReflect.systemContext();
+            if (ctx != null) {
+                EventLog.markModuleLoaded(ctx);
+            }
+        } catch (Throwable ignored) { }
     }
 
     @Override
@@ -227,6 +243,9 @@ public final class WirelessAdbHook extends XposedModule {
         handler = new Handler(Looper.getMainLooper());
         systemContext = ctx;
         controller = new AdbController(ctx, WirelessAdbHook::logLine);
+        // 写独立加载标记：界面据此判断「本次开机的模块是否加载」，
+        // 不再依赖会被滚动截断的日志文本。
+        EventLog.markModuleLoaded(ctx);
         logLine("[框架] 已取得系统 Context（来源 " + ams.getClass().getName() + "）");
         flushPendingLogs();
         controller.probe(systemClassLoader != null ? systemClassLoader : ams.getClass().getClassLoader());

@@ -53,7 +53,8 @@ public final class StatusActivity extends Activity {
         applySystemInsets();
         bindViews();
         wireActions();
-        refreshAll("已准备就绪");
+        // 不预置文案：首帧就按真实状态判定，避免冷启动瞬间两个「就绪」同时亮。
+        refreshAll(null);
     }
 
     /** 整页自由滚动：滚动区吃状态栏/导航栏留白。 */
@@ -220,7 +221,7 @@ public final class StatusActivity extends Activity {
         statusTitle.setBackgroundTintList(ColorStateList.valueOf(
                 getColor(ready ? R.color.fl_running_bg : R.color.fl_idle_bg)));
         statusTitle.setTextColor(getColor(ready ? R.color.fl_running_fg : R.color.fl_idle_fg));
-        boolean moduleLoaded = log != null && log.contains("[框架] 模块已加载");
+        boolean moduleLoaded = EventLog.isModuleLoaded(this, log);
         if (noticeOverride != null) {
             setNotice(noticeOverride);
         } else if (!copiedFlash) {
