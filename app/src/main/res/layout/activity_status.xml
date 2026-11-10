@@ -393,7 +393,7 @@
                         android:backgroundTint="@color/fl_accent"
                         android:clickable="true"
                         android:focusable="true"
-                        android:foreground="?android:attr/selectableItemBackground"
+                        android:foreground="@drawable/fl_ripple_pill"
                         android:gravity="center"
                         android:orientation="horizontal">
 
@@ -429,7 +429,7 @@
                         android:backgroundTint="@color/fl_surface_variant"
                         android:clickable="true"
                         android:focusable="true"
-                        android:foreground="?android:attr/selectableItemBackground"
+                        android:foreground="@drawable/fl_ripple_pill"
                         android:gravity="center"
                         android:orientation="horizontal">
 

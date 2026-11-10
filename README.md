@@ -3,7 +3,7 @@
 **LSPosed 模块**：开机首次解锁后自动开启无线 ADB，并在状态页查看地址与日志。
 
 包名：`dev.wirelessadb.autostart`  
-当前版本：`1.2.11`（libxposed API 102 迁移版，面向一加 15 / ColorOS 17 / Android 17；状态页 Material You 单页 Dashboard、统一线性图标、**整页自由滚动**（无吸顶固定）、桌面图标蓝渐变 + Wi-Fi 信号、app 改名「无线ADB」、无底部导航）
+当前版本：`1.2.12`（libxposed API 102 迁移版，面向一加 15 / ColorOS 17 / Android 17；状态页 Material You 单页 Dashboard、统一线性图标、**整页自由滚动**（无吸顶固定）、桌面图标蓝渐变 + Wi-Fi 信号、app 改名「无线ADB」、无底部导航；**修复全部按钮按下时浮现矩形方块**：改用带圆角遮罩的自定义波纹）
 
 <p align="center">
   <img src="docs/screenshot.png" alt="无线 ADB 自启状态页" width="360" />
@@ -71,6 +71,24 @@
 同一时刻 `dumpsys adb` 的 `adb_wifi.tls_port=36559`，`adb connect 10.184.1.67:36559` 成功 —— 三条证据一致。
 
 诊断还确认 ColorOS 17 在 `AdbService` 上加了定制方法 `disableADBdWifi()` / `enableADBdWifi()` / `isAdbWifiQrSupported()` / `isAdbWifiSupported()`；当前通过 `Settings.Global.adb_wifi_enabled` 写入已能正常开启，暂不调用这些 OEM 私有方法。
+
+### 1.2.12：修复按钮按下时浮现矩形方块
+
+**现象**：点击「TLS 随机端口」「TCP 固定端口」「立即应用」「复制地址」「刷新记录」时，按下瞬间会在圆角按钮上浮现一个矩形方块（此前修复过的闪电按钮同因）。
+
+**根因**：这些控件的 `android:foreground` 用了系统属性 `?android:attr/selectableItemBackground`。该属性在 ColorOS 17 上解析出的是**矩形遮罩**的波纹，而按钮自身背景是圆角（pill / 16dp 圆角），两者形状不匹配 —— 波纹溢出圆角之外，就成了"方块"。
+
+**修复**：全部换成本模块自带的、带正确圆角遮罩的 `<ripple>` 前景：
+
+| 控件 | 前景 drawable | 遮罩形状 |
+|---|---|---|
+| 闪电按钮（1.2.11 已修） | `fl_ripple_circle` | oval |
+| TLS / TCP 模式按钮 | `fl_ripple_pill` | 999dp 胶囊 |
+| 立即应用 / 复制地址 / 刷新记录 | `fl_ripple_round_sm` | 16dp 圆角 |
+
+模式按钮的高亮配色随选中态切换：蓝底（选中）用 25% 白色高亮，浅底（未选中）用 12% 黑色高亮，通过 `setActivated()` + `res/color/ripple_pill.xml` 状态色实现。
+
+实机验证（一加 15 / ColorOS V17）：长按三个按钮截屏，高亮均贴合控件圆角轮廓，无矩形方块。
 
 ## 环境要求
 

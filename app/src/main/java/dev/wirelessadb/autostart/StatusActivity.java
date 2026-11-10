@@ -223,6 +223,9 @@ public final class StatusActivity extends Activity {
 
         modeTlsBtn.setBackgroundTintList(ColorStateList.valueOf(tls ? selected : idle));
         modeTcpBtn.setBackgroundTintList(ColorStateList.valueOf(tls ? idle : selected));
+        // 选中态决定波纹配色：蓝底用白色高亮，浅底用暗色高亮。
+        modeTlsBtn.setActivated(tls);
+        modeTcpBtn.setActivated(!tls);
         modeTlsText.setTextColor(tls ? selectedText : idleText);
         modeTcpText.setTextColor(tls ? idleText : selectedText);
         modeTlsIcon.setImageTintList(ColorStateList.valueOf(tls ? selectedText : idleText));

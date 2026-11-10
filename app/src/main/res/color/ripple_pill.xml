@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 选中态（蓝色底）：白色半透明高亮 -->
+    <item android:color="#40FFFFFF" android:state_activated="true" />
+    <!-- 未选中态（浅色底）：暗色高亮 -->
+    <item android:color="#1F000000" />
+</selector>

@@ -6,7 +6,7 @@
     android:backgroundTint="@color/fl_inner"
     android:clickable="true"
     android:focusable="true"
-    android:foreground="?android:attr/selectableItemBackground"
+    android:foreground="@drawable/fl_ripple_round_sm"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingStart="12dp"
