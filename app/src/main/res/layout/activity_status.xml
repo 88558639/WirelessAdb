@@ -102,7 +102,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Status"
+                                android:text="状态"
                                 android:textColor="@color/fl_on_surface_variant"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
@@ -154,7 +154,7 @@
                         android:backgroundTint="@color/fl_accent"
                         android:clickable="true"
                         android:focusable="true"
-                        android:foreground="?android:attr/selectableItemBackgroundBorderless">
+                        android:foreground="@drawable/fl_ripple_circle">
 
                         <ImageView
                             android:layout_width="26dp"
@@ -187,7 +187,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Framework"
+                            android:text="框架"
                             android:textColor="@color/fl_on_surface_variant"
                             android:textSize="11sp" />
 
@@ -217,7 +217,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Scope"
+                            android:text="作用域"
                             android:textColor="@color/fl_on_surface_variant"
                             android:textSize="11sp" />
 

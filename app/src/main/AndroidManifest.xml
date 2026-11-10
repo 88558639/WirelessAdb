@@ -4,7 +4,7 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="无线 ADB 自启"
+        android:label="无线ADB"
         android:description="@string/wadb_desc"
         android:theme="@style/AppTheme">
         <activity android:name=".StatusActivity" android:exported="true">

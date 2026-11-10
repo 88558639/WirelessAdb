@@ -110,7 +110,13 @@ public final class StatusActivity extends Activity {
         setupAction(refreshRoot, R.drawable.ic_refresh, "刷新记录",
                 "重新读取状态页与运行日志", v -> refreshAll("记录已刷新"));
 
-        findViewById(R.id.hero_action).setOnClickListener(v -> applyBtn.performClick());
+        findViewById(R.id.hero_action).setOnClickListener(v -> {
+            v.animate().scaleX(0.9f).scaleY(0.9f).setDuration(80)
+                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f)
+                            .setDuration(80).start())
+                    .start();
+            applyBtn.performClick();
+        });
 
         copyIcon = copyRoot.findViewById(R.id.action_icon);
         copyLabel = copyRoot.findViewById(R.id.action_label);
