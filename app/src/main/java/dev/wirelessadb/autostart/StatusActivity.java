@@ -43,66 +43,29 @@ public final class StatusActivity extends Activity {
 
     private ScrollView scroll;
     private View applyBtn;
-    private View headerOverlay;
-    private int titleHeight;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_status);
         applySystemInsets();
-        setupStickyHeader();
         bindViews();
         wireActions();
         refreshAll("已准备就绪");
     }
 
-    /** 滚动区吃状态栏/导航栏留白；固定层顶部对齐同一基准线。 */
+    /** 整页自由滚动：滚动区吃状态栏/导航栏留白。 */
     private void applySystemInsets() {
-        View headerOverlay = findViewById(R.id.header_overlay);
         scroll = findViewById(R.id.scroll);
         int extraTop = dp(12);
         int bottomPad = dp(20);
         scroll.setOnApplyWindowInsetsListener((v, insets) -> {
             int top = insets.getSystemWindowInsetTop();
             int bottom = insets.getSystemWindowInsetBottom();
-            int base = top + extraTop;
-            v.setPadding(v.getPaddingLeft(), base, v.getPaddingRight(), bottom + bottomPad);
-            headerOverlay.setPadding(0, base, 0, 0);
+            v.setPadding(v.getPaddingLeft(), top + extraTop,
+                    v.getPaddingRight(), bottom + bottomPad);
             return insets.consumeSystemWindowInsets();
         });
         scroll.requestApplyInsets();
-        headerOverlay.requestApplyInsets();
-    }
-
-    /**
-     * 吸顶：仪表盘大标题随内容滚走，
-     * 「无线调试自动开启 + 状态胶囊 + Hero 卡」滚到顶后钉住。
-     */
-    private void setupStickyHeader() {
-        View headerContent = findViewById(R.id.header_content);
-        View titleBlock = findViewById(R.id.title_block);
-        View headerSpacer = findViewById(R.id.header_spacer);
-        headerOverlay = findViewById(R.id.header_overlay);
-
-        scroll.setOnScrollChangeListener((v, sx, sy, oldX, oldY) -> applyStickyOffset(sy));
-
-        scroll.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
-            int th = titleBlock.getHeight();
-            if (th > 0) titleHeight = th;
-            int hp = headerContent.getHeight();
-            if (hp > 0 && headerSpacer.getLayoutParams().height != hp) {
-                headerSpacer.getLayoutParams().height = hp;
-                headerSpacer.requestLayout();
-            }
-            applyStickyOffset(scroll.getScrollY());
-        });
-        headerOverlay.post(() -> applyStickyOffset(0));
-    }
-
-    /** 固定层位移：未到顶时跟随内容，滚过大标题高度后停在顶部基准线。 */
-    private void applyStickyOffset(int scrollY) {
-        if (headerOverlay == null || titleHeight <= 0) return;
-        headerOverlay.setTranslationY(Math.max(0, titleHeight - scrollY));
     }
 
     @Override protected void onResume() {
