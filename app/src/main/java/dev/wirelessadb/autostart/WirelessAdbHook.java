@@ -313,22 +313,38 @@ public final class WirelessAdbHook extends XposedModule {
     private static void onSetMode(Intent intent) {
         String mode = intent.getStringExtra("mode");
         int port = intent.getIntExtra("port", cachedTcpPort);
+        boolean changed = false;
         if (mode != null && !mode.isEmpty()) {
-            cachedMode = AdbModeConfig.MODE_TCP.equals(mode) ? AdbModeConfig.MODE_TCP : AdbModeConfig.MODE_TLS;
+            String target = AdbModeConfig.MODE_TCP.equals(mode)
+                    ? AdbModeConfig.MODE_TCP : AdbModeConfig.MODE_TLS;
+            if (port < 1 || port > 65535) port = cachedTcpPort;
+            changed = !target.equals(cachedMode) || port != cachedTcpPort;
+            cachedMode = target;
             if (port >= 1 && port <= 65535) cachedTcpPort = port;
-            AdbModeConfig.setModeAsSystem(systemContext, cachedMode, cachedTcpPort);
-            try {
-                Context app = moduleContext();
-                if (app != null) AdbModeConfig.setMode(app, cachedMode, cachedTcpPort);
-            } catch (Throwable ignored) { }
+            if (changed) {
+                AdbModeConfig.setModeAsSystem(systemContext, cachedMode, cachedTcpPort);
+                try {
+                    Context app = moduleContext();
+                    if (app != null) AdbModeConfig.setMode(app, cachedMode, cachedTcpPort);
+                } catch (Throwable ignored) { }
+            }
         } else {
             reloadConfig();
+        }
+        if (!changed) {
+            // 配置没变：绝不重启 adbd，否则会白白打断正在使用的 ADB 连接。
+            logLine("模式未变（" + AdbModeConfig.modeLabel(cachedMode)
+                    + "），跳过重启，仅刷新地址");
+            if (controller != null) controller.clearReverts();
+            checkAddress("模式未变", 0, false);
+            return;
         }
         lastCopiedAddress = null;
         lastEnableAt = 0L;
         if (controller != null) controller.clearReverts();
         logLine("切换模式 → " + AdbModeConfig.modeLabel(cachedMode)
-                + (AdbModeConfig.MODE_TCP.equals(cachedMode) ? ("，端口 " + cachedTcpPort) : ""));
+                + (AdbModeConfig.MODE_TCP.equals(cachedMode) ? ("，端口 " + cachedTcpPort) : "")
+                + "（adbd 将重启，端口与当前连接都会变）");
         if (userUnlocked) enableAdb("切换模式", true);
         else logLine("模式已保存，解锁后生效");
     }
@@ -564,10 +580,17 @@ public final class WirelessAdbHook extends XposedModule {
                     } catch (Throwable ignored) { }
                 }
                 if (AdbModeConfig.MODE_TCP.equals(cachedMode) && (attempt == 3 || attempt == 7)) {
-                    try {
-                        SysReflect.setSystemProperty(AdbController.PROP_TCP_PORT, String.valueOf(cachedTcpPort));
-                    } catch (Throwable ignored) { }
-                    if (controller != null) controller.restartAdbd("TCP 轮询重试");
+                    // 只有端口属性没就位时才重启；已就位再重启只会白断一次连接。
+                    int prop = SysReflect.getSystemPropertyInt(AdbController.PROP_TCP_PORT, -1);
+                    if (prop != cachedTcpPort) {
+                        try {
+                            SysReflect.setSystemProperty(AdbController.PROP_TCP_PORT,
+                                    String.valueOf(cachedTcpPort));
+                        } catch (Throwable ignored) { }
+                        if (controller != null) controller.restartAdbd("TCP 轮询重试");
+                    } else {
+                        logLine("TCP 端口属性已就位（" + cachedTcpPort + "），跳过轮询重启");
+                    }
                 }
                 checkAddress(reason, attempt + 1, forceCopy);
             } else {

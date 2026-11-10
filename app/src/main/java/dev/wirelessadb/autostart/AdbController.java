@@ -103,18 +103,33 @@ final class AdbController {
         }
     }
 
-    /** TLS：清掉经典 TCP 监听 → 打开无线调试 → 必要时经 AdbService 直调补一刀。 */
+    /**
+     * TLS：清掉经典 TCP 监听 → 打开无线调试 → 必要时经 AdbService 直调补一刀。
+     *
+     * <p>只有「当前确实是 TCP 模式」才需要清端口并重启 adbd；已经是 TLS 且无线调试已开时
+     * 不做任何重启——否则每次点「立即应用」都会把正在使用的无线 ADB 连接打断一次。
+     */
     void enableTls(String reason) {
         try {
             String currentTcp = SysReflect.getSystemProperty(PROP_TCP_PORT, "");
-            if (currentTcp != null && !currentTcp.isEmpty()
-                    && !"-1".equals(currentTcp) && !"0".equals(currentTcp)) {
+            if (isLiveTcpPort(currentTcp)) {
                 SysReflect.setSystemProperty(PROP_TCP_PORT, "-1");
                 logger.log("TLS 模式：已清除 " + PROP_TCP_PORT + "（原 " + currentTcp + "）");
                 restartAdbd("切回 TLS");
+            } else {
+                logger.log("TLS 模式：" + PROP_TCP_PORT + " 已是 " + describeTcpProp(currentTcp)
+                        + "，无需清除");
             }
         } catch (Throwable t) {
             logger.log("清除 TCP 端口时出错（可忽略）：" + shortError(t));
+        }
+        int tls = tlsPort();
+        if (adbWifiEnabled() == 1 && tls > 0 && isPortListening(tls)) {
+            // 无线调试已开、TLS 端口可读且确实在监听：adbd 当前实例已在提供 TLS 服务。
+            // 再写一次 Settings.Global 只会让框架白跑一轮，没必要。
+            logger.log("无线调试已开启且 TLS 端口=" + tls
+                    + " 正在监听，跳过重复写回（原因：" + reason + "）");
+            return;
         }
         boolean changed = Settings.Global.putInt(context.getContentResolver(), SETTING_ADB_WIFI, 1);
         logger.log((changed ? "已请求开启无线调试 TLS" : "无线调试设置未变化（可能已经开启）")
@@ -126,6 +141,13 @@ final class AdbController {
 
     void enableTcp(int port, String reason) {
         int target = port > 0 ? port : AdbModeConfig.DEFAULT_TCP_PORT;
+        int current = SysReflect.getSystemPropertyInt(PROP_TCP_PORT, -1);
+        if (current == target && isAdbdRunning() && isPortListening(target)) {
+            // 已经是目标端口、adbd 在跑、端口确实在监听：重启只会白白打断当前 ADB 会话。
+            logger.log("TCP 模式已是端口 " + target + " 且端口在监听，跳过重启（原因："
+                    + reason + "）");
+            return;
+        }
         try {
             SysReflect.setSystemProperty(PROP_TCP_PORT, String.valueOf(target));
             logger.log("已设置 " + PROP_TCP_PORT + "=" + target + "，原因：" + reason);
@@ -139,6 +161,48 @@ final class AdbController {
             logger.log("[警告] " + PROP_TCP_PORT + " 回读=" + readBack + "，期望=" + target
                     + "；Android 17 的 adbd 可能已不读取该属性");
         }
+    }
+
+    /** adbd 是否处于 running 状态；用于判断是否还需要重启。 */
+    private boolean isAdbdRunning() {
+        String state = SysReflect.getSystemProperty("init.svc.adbd", "");
+        return "running".equals(state);
+    }
+
+    /** 目标端口本机是否真的有监听；只靠属性值不够，属性可能残留而服务已没起。 */
+    private boolean isPortListening(int port) {
+        if (port <= 0 || port > 65535) return false;
+        java.net.Socket socket = null;
+        try {
+            socket = new java.net.Socket();
+            socket.connect(new java.net.InetSocketAddress(
+                    java.net.InetAddress.getByName("127.0.0.1"), port), 800);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        } finally {
+            if (socket != null) {
+                try { socket.close(); } catch (Throwable ignored) { }
+            }
+        }
+    }
+
+    /** tcp.port 属性是否指向一个真实监听的端口（-1 / 0 / 空都算没开）。 */
+    private static boolean isLiveTcpPort(String value) {
+        if (value == null || value.isEmpty()) return false;
+        if ("-1".equals(value) || "0".equals(value)) return false;
+        try {
+            int port = Integer.parseInt(value.trim());
+            return port > 0 && port <= 65535;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private static String describeTcpProp(String value) {
+        if (value == null || value.isEmpty()) return "未设置";
+        if ("-1".equals(value) || "0".equals(value)) return "已关闭（" + value + "）";
+        return value;
     }
 
     void restartAdbd(String reason) {

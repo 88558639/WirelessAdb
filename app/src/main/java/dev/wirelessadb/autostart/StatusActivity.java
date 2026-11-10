@@ -22,6 +22,9 @@ public final class StatusActivity extends Activity {
     private static final int LOG_PREVIEW_LINES = 12;
     private static final Pattern ADDRESS_IN_LOG =
             Pattern.compile("(\\d{1,3}(?:\\.\\d{1,3}){3}:\\d{1,5})");
+    /** 模块日志里的「[端口] TLS 端口=N」，是当前 adbd 实例的真实端口。 */
+    private static final Pattern TLS_PORT_IN_LOG =
+            Pattern.compile("\\[端口\\]\\s*TLS 端口=(\\d+)");
 
     private TextView noticeChip;
     private TextView statusTitle;
@@ -160,17 +163,32 @@ public final class StatusActivity extends Activity {
                 return;
             }
         }
+        String previousMode = AdbModeConfig.getMode(this);
+        boolean modeChanged = !mode.equals(previousMode);
         AdbModeConfig.setMode(this, mode, port);
         sendBroadcast(new Intent("dev.wirelessadb.autostart.SET_MODE")
                 .setPackage("android")
                 .putExtra("mode", mode)
                 .putExtra("port", port));
-        String notice = AdbModeConfig.MODE_TLS.equals(mode)
-                ? "TLS 模式已应用"
-                : ("TCP 端口 " + port + " 已应用");
+        String notice;
+        if (!modeChanged) {
+            // 同一模式重复点击：配置未变，不应打断当前连接。
+            notice = "已是当前模式，未做改动";
+        } else {
+            // 跨模式切换必然重启 adbd → 端口会变、当前连接会断，必须明确告知。
+            notice = AdbModeConfig.MODE_TLS.equals(mode)
+                    ? "已切到 TLS，端口将重置，请用新地址重连"
+                    : ("已切到 TCP " + port + "，请用新地址重连");
+            Toast.makeText(this, notice, Toast.LENGTH_LONG).show();
+        }
         refreshAll(notice);
-        Toast.makeText(this, notice, Toast.LENGTH_SHORT).show();
+        if (!modeChanged) {
+            Toast.makeText(this, notice, Toast.LENGTH_SHORT).show();
+        }
         portInput.postDelayed(() -> refreshAll(null), 1500);
+        // 切模式后端口要等 adbd 重启完才稳定，多刷几次把新地址取回来。
+        portInput.postDelayed(() -> refreshAll(null), 4000);
+        portInput.postDelayed(() -> refreshAll(null), 8000);
     }
 
     private void refreshAll(String noticeOverride) {
@@ -269,6 +287,14 @@ public final class StatusActivity extends Activity {
     }
 
     private String resolveAddress(String mode, int port, String log) {
+        String ip = findWifiIpv4();
+        // TCP 模式端口是确定的，直接算，避免显示切换前的旧地址。
+        if (AdbModeConfig.MODE_TCP.equals(mode)) {
+            if (ip != null) return ip + ":" + port;
+        }
+        // TLS 端口每次 adbd 重启都会重排，取日志里最新的 [端口] 行，而不是缓存地址。
+        int tlsPort = latestTlsPort(log);
+        if (ip != null && tlsPort > 0) return ip + ":" + tlsPort;
         String saved = EventLog.readLastAddress(this);
         if (saved != null && !saved.isEmpty()) return saved;
         if (log != null) {
@@ -277,10 +303,22 @@ public final class StatusActivity extends Activity {
             while (m.find()) last = m.group(1);
             if (last != null) return last;
         }
-        String ip = findWifiIpv4();
         if (ip == null) return null;
         if (AdbModeConfig.MODE_TCP.equals(mode)) return ip + ":" + port;
         return ip + ":?";
+    }
+
+    /** 日志里最后一条「[端口] TLS 端口=N」，即当前 adbd 实例的真实 TLS 端口。 */
+    private static int latestTlsPort(String log) {
+        if (log == null || log.isEmpty()) return -1;
+        Matcher m = TLS_PORT_IN_LOG.matcher(log);
+        int last = -1;
+        while (m.find()) {
+            try {
+                last = Integer.parseInt(m.group(1));
+            } catch (NumberFormatException ignored) { }
+        }
+        return last;
     }
 
     private static String findWifiIpv4() {
