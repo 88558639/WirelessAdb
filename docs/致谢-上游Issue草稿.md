@@ -1,7 +1,3 @@
-标题：`[Feature] Android 17 / ColorOS 17 适配：API 102 迁移 + TLS 端口三级探测`
-
-正文：
-
 ## 背景
 
 我从 1.0.18 fork 了这个仓库并继续维护（[88558639/WirelessAdb-LSPosed](https://github.com/88558639/WirelessAdb-LSPosed)），目前已迭代到 1.2.14，适配了一加 15 / ColorOS V17 / Android 17。
