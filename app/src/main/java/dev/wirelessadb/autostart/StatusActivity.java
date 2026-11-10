@@ -23,15 +23,6 @@ public final class StatusActivity extends Activity {
     private static final Pattern ADDRESS_IN_LOG =
             Pattern.compile("(\\d{1,3}(?:\\.\\d{1,3}){3}:\\d{1,5})");
 
-    private static final int[] NAV_ITEMS = {
-            R.id.nav_dashboard, R.id.nav_mode, R.id.nav_actions, R.id.nav_log};
-    private static final int[] NAV_ICONS = {
-            R.id.nav_dashboard_icon, R.id.nav_mode_icon, R.id.nav_actions_icon, R.id.nav_log_icon};
-    private static final int[] NAV_LABELS = {
-            R.id.nav_dashboard_label, R.id.nav_mode_label, R.id.nav_actions_label, R.id.nav_log_label};
-    private static final int[] NAV_TARGETS = {
-            R.id.section_hero, R.id.section_mode, R.id.section_actions, R.id.section_log};
-
     private TextView noticeChip;
     private TextView statusTitle;
     private TextView modeLabel;
@@ -52,7 +43,6 @@ public final class StatusActivity extends Activity {
 
     private ScrollView scroll;
     private View applyBtn;
-    private final View[] navItems = new View[NAV_ITEMS.length];
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -60,20 +50,18 @@ public final class StatusActivity extends Activity {
         applySystemInsets();
         bindViews();
         wireActions();
-        wireNav();
         refreshAll("已准备就绪");
     }
 
-    /** 避开状态栏 / 导航栏，并给固定底部导航条留出空间。 */
+    /** 避开状态栏 / 导航栏系统留白。 */
     private void applySystemInsets() {
         scroll = findViewById(R.id.scroll);
         int extraTop = dp(12);
-        int navSpace = dp(112);
         scroll.setOnApplyWindowInsetsListener((v, insets) -> {
             int top = insets.getSystemWindowInsetTop();
             int bottom = insets.getSystemWindowInsetBottom();
             v.setPadding(v.getPaddingLeft(), top + extraTop,
-                    v.getPaddingRight(), bottom + navSpace);
+                    v.getPaddingRight(), bottom);
             return insets.consumeSystemWindowInsets();
         });
         scroll.requestApplyInsets();
@@ -150,30 +138,6 @@ public final class StatusActivity extends Activity {
         modeTlsBtn.setOnClickListener(v -> switchMode(AdbModeConfig.MODE_TLS));
         modeTcpBtn.setOnClickListener(v -> switchMode(AdbModeConfig.MODE_TCP));
         portInput.setText(String.valueOf(AdbModeConfig.getTcpPort(this)));
-    }
-
-    /** 底部四项作为页面锚点，点击滚动到对应区块并高亮。 */
-    private void wireNav() {
-        for (int i = 0; i < NAV_ITEMS.length; i++) {
-            final int index = i;
-            navItems[i] = findViewById(NAV_ITEMS[i]);
-            navItems[i].setOnClickListener(v -> {
-                setNavSelected(index);
-                View target = findViewById(NAV_TARGETS[index]);
-                scroll.smoothScrollTo(0, Math.max(0, target.getTop() - dp(16)));
-            });
-        }
-    }
-
-    private void setNavSelected(int active) {
-        for (int i = 0; i < navItems.length; i++) {
-            if (navItems[i] == null) continue;
-            int color = getColor(i == active ? R.color.fl_accent : R.color.fl_icon);
-            ImageView icon = navItems[i].findViewById(NAV_ICONS[i]);
-            TextView label = navItems[i].findViewById(NAV_LABELS[i]);
-            icon.setImageTintList(ColorStateList.valueOf(color));
-            label.setTextColor(color);
-        }
     }
 
     private void switchMode(String mode) {
