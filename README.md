@@ -3,7 +3,7 @@
 **LSPosed 模块**：开机首次解锁后自动开启无线 ADB，并在状态页查看地址与日志。
 
 包名：`dev.wirelessadb.autostart`  
-当前版本：`1.2.3`（libxposed API 102 迁移版，面向一加 15 / ColorOS 17 / Android 17；状态页已重构为 FLClash 风格单页 Dashboard，统一线性图标，无底部导航）
+当前版本：`1.2.5`（libxposed API 102 迁移版，面向一加 15 / ColorOS 17 / Android 17；状态页 FLClash 风格单页 Dashboard、统一线性图标、桌面图标 FLClash 绿螺旋、app 改名「无线ADB」、无底部导航）
 
 <p align="center">
   <img src="docs/screenshot.png" alt="无线 ADB 自启状态页" width="360" />
