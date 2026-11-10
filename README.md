@@ -3,7 +3,7 @@
 **LSPosed 模块**：开机首次解锁后自动开启无线 ADB，并在状态页查看地址与日志。
 
 包名：`dev.wirelessadb.autostart`  
-当前版本：`1.2.14`（libxposed API 102 迁移版，面向一加 15 / ColorOS 17 / Android 17；状态页 Material You 单页 Dashboard、统一线性图标、**整页自由滚动**（无吸顶固定）、桌面图标蓝渐变 + Wi-Fi 信号、app 改名「无线ADB」、无底部导航；修复全部按钮按下时浮现矩形方块；**修复无谓重启 adbd 导致的无线 ADB 断连**：配置未变时不再重启，切换模式时明确提示需用新地址重连；**模块加载状态改用独立标记 + boot_count 锚定**，不再依赖会被滚动截断的日志文本）
+当前版本：`1.2.15`（libxposed API 102 迁移版，面向一加 15 / ColorOS 17 / Android 17；**桌面图标换为绿底白螺旋（FLClash 风格，附 Android 13+ 主题图标层）**；状态页 Material You 单页 Dashboard、统一线性图标、**整页自由滚动**（无吸顶固定）、app 改名「无线ADB」、无底部导航；修复全部按钮按下时浮现矩形方块；**修复无谓重启 adbd 导致的无线 ADB 断连**：配置未变时不再重启，切换模式时明确提示需用新地址重连；**模块加载状态改用独立标记 + boot_count 锚定**，不再依赖会被滚动截断的日志文本）
 
 <p align="center">
   <img src="docs/screenshot.png" alt="无线 ADB 自启状态页" width="360" />
@@ -86,6 +86,17 @@
 
 跨模式切换（TLS ↔ TCP）仍会断连，这是平台必然 —— 改为明确提示「端口将重置，请用新地址重连」并自动刷新新地址。顺带修了切换模式后短暂显示旧端口的 bug。
 
+### 1.2.15：桌面图标换为绿底白螺旋
+
+桌面图标此前是「蓝渐变 + Wi-Fi 信号弧线」（自 1.2.7 起）。本次换成 FLClash 风格的**绿底白螺旋**，采用 Android 官方模板布局（位图放 `mipmap-*dpi`，`adaptive-icon` 分 background / foreground / monochrome 三层）：
+
+- **背景**：源图拟合的绿→蓝对角渐变（`#284252 → #376049 → #3B7538`），保留原图暗角。
+- **前景**：白色陶瓷螺旋 + 投影，保留原图明暗质感；投影与螺旋烘进同一张 RGBA，任何机型上同步缩放不错位。
+- **monochrome 层**（Android 13+ 主题图标）：只留螺旋轮廓，由系统按壁纸取色着色。
+- 图形占 108dp 画布的 76%，保证 launcher 的 72dp 掩码下外圈白环不被裁切。
+
+图标资源与生成脚本可复现（`tools/gen_launcher_icon.py`），历次造型的归档与回滚方法见 [桌面图标造型记录](docs/桌面图标造型记录.md)。
+
 ### 1.2.14：模块加载状态改用独立标记，不再依赖日志文本
 
 原先判「模块已加载」靠 grep 运行日志，而日志会滚动截断（16KB 上限）也会跨重启保留，两个方向都会误报。改为独立的 `Settings.Global` 标记 + `boot_count` 锚定：`boot_count` 不一致即视为上次开机、判定未加载，同一次开机内写入的标记一直有效，随开机自动重置。新增 `SysReflect.systemContext()` 让标记在 AMS 未 ready 时也能写入。顺带修了冷启动首帧硬编码「已准备就绪」。
@@ -158,6 +169,7 @@ unzip -l app/build/outputs/apk/release/app-release.apk | grep META-INF/xposed
 - **修复无谓重启 adbd 导致的无线 ADB 断连**：目标配置未变时不再重启 adbd，端口是否在监听用 Socket 实测而非只看属性值。
 - **模块加载状态判定改用独立标记**：以 `Settings.Global` + `boot_count` 锚定，不再依赖会滚动截断、且跨重启残留的日志文本。
 - **状态页改版**：单页 Dashboard、统一线性图标、界面文案中文化、按钮按压反馈改为带圆角遮罩的自定义波纹。
+- **桌面图标改版**：绿底白螺旋（FLClash 风格），新增 Android 13+ 主题图标层。
 
 感谢原作者 shirenran 的开源贡献。如发现上游仍存在的问题，欢迎在原仓库反馈。
 
