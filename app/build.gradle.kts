@@ -9,8 +9,8 @@ android {
         applicationId = "dev.wirelessadb.autostart"
         minSdk = 28
         targetSdk = 36
-        versionCode = 30
-        versionName = "1.2.8"
+        versionCode = 31
+        versionName = "1.2.9"
     }
 
     buildTypes {

@@ -46,15 +46,17 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:gravity="center"
                 android:orientation="horizontal"
                 android:paddingTop="10dp"
                 android:paddingBottom="12dp">
 
                 <TextView
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
                     android:text="@string/wadb_title"
                     android:textColor="@color/fl_on_surface_variant"
                     android:textSize="12sp" />
@@ -80,6 +82,8 @@
                 android:id="@+id/section_hero"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
                 android:background="@drawable/fl_round"
                 android:backgroundTint="@color/fl_surface"
                 android:orientation="vertical"
