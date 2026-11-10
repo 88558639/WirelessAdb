@@ -9,6 +9,14 @@
   <img src="docs/screenshot.png" alt="无线 ADB 自启状态页" width="360" />
 </p>
 
+## 功能
+TLS 模式：系统「无线调试」（adb_wifi_enabled），端口随机，需配对
+TCP 模式：等价 adb tcpip <port>，默认 5555，电脑可直接 adb connect IP:5555
+监听无线调试关闭（仅 TLS）、Wi‑Fi 恢复、亮屏，必要时重新开启
+地址变化时自动复制到剪贴板（等待微信输入法跨设备粘贴就绪）
+获取 IP 时跳过 172.19.* VPN 虚拟地址
+开机早期日志写入 Settings.Global，状态页可查看
+
 ## 这次改了什么
 
 | 项 | 1.0.18（legacy） | 1.1.1 |
