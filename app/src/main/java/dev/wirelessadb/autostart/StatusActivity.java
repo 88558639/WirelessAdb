@@ -103,7 +103,7 @@ public final class StatusActivity extends Activity {
         View applyRoot = findViewById(R.id.action_apply);
         View copyRoot = findViewById(R.id.action_copy);
         View refreshRoot = findViewById(R.id.action_refresh);
-        applyBtn = applyRoot.findViewById(R.id.action_btn);
+        applyBtn = applyRoot;
         setupAction(applyRoot, R.drawable.ic_check_cyan, "立即应用",
                 "向 system_server 请求开启无线 ADB", v -> {
                     sendBroadcast(new Intent("dev.wirelessadb.autostart.APPLY").setPackage("android"));
@@ -133,7 +133,7 @@ public final class StatusActivity extends Activity {
         ImageView icon = root.findViewById(R.id.action_icon);
         TextView text = root.findViewById(R.id.action_label);
         TextView subView = root.findViewById(R.id.action_sub);
-        View btn = root.findViewById(R.id.action_btn);
+        View btn = root;
         icon.setImageResource(iconRes);
         text.setText(label);
         subView.setText(sub);
