@@ -1,6 +1,6 @@
 ## 背景
 
-我从 1.0.18 fork 了这个仓库并继续维护（[88558639/WirelessAdb-LSPosed](https://github.com/88558639/WirelessAdb-LSPosed)），目前已迭代到 1.2.14，适配了一加 15 / ColorOS V17 / Android 17。
+我从 1.0.18 fork 了这个仓库并继续维护（[88558639/WirelessAdb](https://github.com/88558639/WirelessAdb)），目前已迭代到 1.2.15，适配了一加 15 / ColorOS V17 / Android 17。
 
 上一轮见仓库停在 2026-07-29（1.0.18），而 Android 17 上原版有两个**阻断性**问题——模块在 LSPosed 2.1.0+ 下根本不加载，且即使加载也拿不到端口。我把这几处的改动整理出来回馈上游，如果对项目有价值，欢迎合并。
 
@@ -80,7 +80,7 @@ LSPosed 2.1.0+ 起 modern API 成为主流，原版的 legacy 声明（`assets/x
 - **PR B**：adbd 重启幂等化
 - **PR C**：模块加载状态判定
 
-我的 fork 里有完整提交历史可参考：https://github.com/88558639/WirelessAdb-LSPosed
+我的 fork 里有完整提交历史可参考：https://github.com/88558639/WirelessAdb
 
 也注意到上游有 5 个未合并的 PR（i18n、SELinux TCP 修复、安全加固、图标重绘、在线客户端监控），如果其中有需要的改动想合进来，我可以基于我的分支帮忙适配。
 
