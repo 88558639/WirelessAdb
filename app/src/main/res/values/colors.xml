@@ -36,7 +36,7 @@
     <color name="wadb_address">#2F3B57</color>
     <color name="wadb_status_bar">#FFF9EF</color>
 
-    <!-- FLClash Material You 风格 · 浅色（蓝色强调，对应 FLClash 浅色手机端） -->
+    <!-- Material You 风格 · 浅色（蓝色强调） -->
     <color name="fl_bg">#F3F5F9</color>
     <color name="fl_surface">#FFFFFF</color>
     <color name="fl_surface_variant">#EEF1F7</color>
