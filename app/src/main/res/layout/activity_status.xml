@@ -43,20 +43,19 @@
 
 
 
-            <LinearLayout
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
                 android:paddingTop="10dp"
                 android:paddingBottom="12dp">
 
                 <TextView
+                    android:id="@+id/wadb_subtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"
+                    android:layout_gravity="start|center_vertical"
                     android:text="@string/wadb_title"
                     android:textColor="@color/fl_on_surface_variant"
                     android:textSize="12sp" />
@@ -65,6 +64,7 @@
                     android:id="@+id/notice_chip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal|center_vertical"
                     android:background="@drawable/fl_pill"
                     android:backgroundTint="@color/fl_accent_soft"
                     android:paddingStart="12dp"
@@ -75,7 +75,7 @@
                     android:textColor="@color/fl_accent"
                     android:textSize="11sp"
                     android:textStyle="bold" />
-            </LinearLayout>
+            </FrameLayout>
 
             <!-- Hero status card -->
             <LinearLayout
