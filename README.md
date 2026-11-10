@@ -1,4 +1,4 @@
-# WirelessAdb-LSPosed
+# WirelessAdb
 
 **LSPosed 模块**：开机首次解锁后自动开启无线 ADB，并在状态页查看地址与日志。
 
