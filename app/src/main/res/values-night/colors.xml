@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FLClash Material You 风格 · 深色（橙色强调，对应 FLClash 深色手机端） -->
+    <color name="fl_bg">#121317</color>
+    <color name="fl_surface">#1E2126</color>
+    <color name="fl_surface_variant">#2A2E35</color>
+    <color name="fl_inner">#24272D</color>
+    <color name="fl_on_surface">#F1F3F7</color>
+    <color name="fl_on_surface_variant">#9AA1AD</color>
+    <color name="fl_accent">#FF9F43</color>
+    <color name="fl_on_accent">#1A1206</color>
+    <color name="fl_accent_soft">#3A2A19</color>
+    <color name="fl_running_bg">#163524</color>
+    <color name="fl_running_fg">#6AD98D</color>
+    <color name="fl_idle_bg">#3A2A19</color>
+    <color name="fl_idle_fg">#FFB868</color>
+    <color name="fl_log_bg">#181A1F</color>
+    <color name="fl_nav_bg">#23262C</color>
+    <color name="fl_icon">#B6BCC6</color>
+    <color name="fl_status_bar">#121317</color>
+    <color name="fl_divider">#31353D</color>
+</resources>

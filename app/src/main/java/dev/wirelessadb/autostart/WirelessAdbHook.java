@@ -1,5 +1,6 @@
 package dev.wirelessadb.autostart;
 
+import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -7,7 +8,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.app.ActivityManager;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -18,23 +18,31 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.util.Log;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import io.github.libxposed.api.XposedInterface.ExceptionMode;
+import io.github.libxposed.api.XposedInterface.HookHandle;
+import io.github.libxposed.api.XposedModule;
+import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam;
+import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam;
 
-public final class WirelessAdbHook implements IXposedHookLoadPackage {
+/** libxposed API 102 入口；作用域 system（system_server）。 */
+public final class WirelessAdbHook extends XposedModule {
+    private static final String TAG = "WirelessAdbAutoStart";
     private static final String ACTION_LOG = "dev.wirelessadb.autostart.LOG_EVENT";
     private static final String ACTION_REQUEST_COPY = "dev.wirelessadb.autostart.REQUEST_COPY";
     private static final String ACTION_SET_MODE = "dev.wirelessadb.autostart.SET_MODE";
@@ -42,15 +50,18 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
     private static final String LOG_RECEIVER = "dev.wirelessadb.autostart.LogReceiver";
     private static final String MODULE_PACKAGE = "dev.wirelessadb.autostart";
     private static final String WETYPE_PACKAGE = "com.tencent.wetype";
-    private static final String SETTING_ADB_WIFI = "adb_wifi_enabled";
-    private static final String PROP_TLS_PORT = "service.adb.tls.port";
-    private static final String PROP_TCP_PORT = "service.adb.tcp.port";
     private static final long REENABLE_COOLDOWN_MS = 8_000L;
     private static final long WIFI_RESTORE_DELAY_MS = 2_500L;
     private static final long ADDRESS_POLL_INTERVAL_MS = 2_500L;
     private static final int ADDRESS_POLL_MAX = 12;
 
+    private static WirelessAdbHook instance;
+    private static final List<HookHandle> hookHandles = new ArrayList<>();
+    private static final List<String> pendingLogs = new ArrayList<>();
+
     private static Context systemContext;
+    private static AdbController controller;
+    private static ClassLoader systemClassLoader;
     private static Handler handler;
     private static boolean armed;
     private static boolean keepersRegistered;
@@ -61,35 +72,218 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
     private static long lastEnableAt;
     private static final AtomicBoolean enableInFlight = new AtomicBoolean(false);
 
-    /** Cached mode; refreshed from prefs on unlock / SET_MODE. */
     private static String cachedMode = AdbModeConfig.MODE_TLS;
     private static int cachedTcpPort = AdbModeConfig.DEFAULT_TCP_PORT;
 
-    @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
-        if (!"android".equals(lpparam.packageName) || !"android".equals(lpparam.processName)) return;
-        handler = new Handler(Looper.getMainLooper());
-        try {
-            Class<?> ams = XposedHelpers.findClass("com.android.server.am.ActivityManagerService", lpparam.classLoader);
-            XposedBridge.hookAllMethods(ams, "systemReady", new XC_MethodHook() {
-                @Override protected void afterHookedMethod(MethodHookParam param) {
-                    if (armed) return;
-                    armed = true;
-                    try { systemContext = (Context) XposedHelpers.getObjectField(param.thisObject, "mContext"); }
-                    catch (Throwable t) { log("获取系统上下文失败：" + shortError(t)); return; }
-                    registerCommandReceivers();
-                    waitForUnlock();
-                }
-            });
-            hookWeTypeProcessStart(lpparam.classLoader);
-        } catch (Throwable t) {
-            XposedBridge.log("WirelessAdbAutoStart hook failed: " + t);
+    @Override
+    public void onModuleLoaded(ModuleLoadedParam param) {
+        instance = this;
+        boolean capSystem = (getFrameworkProperties() & PROP_CAP_SYSTEM) != 0;
+        logLine("[框架] 模块已加载 process=" + param.getProcessName()
+                + " systemServer=" + param.isSystemServer()
+                + " framework=" + getFrameworkName() + "/" + getFrameworkVersion()
+                + "(" + getFrameworkVersionCode() + ") api=" + getApiVersion()
+                + " capSystem=" + capSystem);
+        if (!capSystem) {
+            logLine("[警告] 当前框架不支持 system_server hook；请确认 LSPosed 版本 >= 2.1.0 且作用域勾选系统框架");
         }
+    }
+
+    @Override
+    public void onSystemServerStarting(SystemServerStartingParam param) {
+        instance = this;
+        final ClassLoader loader = param.getClassLoader();
+        systemClassLoader = loader;
+        logLine("[框架] system_server 启动，classLoader=" + loader.getClass().getName());
+        installAmsHook(loader);
+        installWeTypeHook(loader);
+    }
+
+    private void installAmsHook(ClassLoader loader) {
+        String[] candidates = {
+                "com.android.server.am.ActivityManagerService",
+                "com.android.server.am.OplusActivityManagerService",
+                "com.android.server.am.ActivityManagerServiceEx"
+        };
+        for (String name : candidates) {
+            Class<?> ams = SysReflect.findClass(loader, name);
+            if (ams == null) continue;
+            List<Method> methods = SysReflect.findMethods(ams, "systemReady");
+            if (methods.isEmpty()) {
+                logLine("[框架] " + name + " 无 systemReady，尝试下一个候选");
+                continue;
+            }
+            int ok = 0;
+            for (Method method : methods) {
+                try {
+                    try {
+                        deoptimize(method);
+                    } catch (Throwable ignored) { }
+                    HookHandle handle = hook(method)
+                            .setExceptionMode(ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object result = chain.proceed();
+                                try {
+                                    onSystemReady(chain.getThisObject());
+                                } catch (Throwable t) {
+                                    logLine("systemReady 后续处理失败：" + shortError(t));
+                                }
+                                return result;
+                            });
+                    hookHandles.add(handle);
+                    ok++;
+                } catch (Throwable t) {
+                    logLine("[框架] hook " + name + ".systemReady 失败：" + shortError(t));
+                }
+            }
+            logLine("[框架] 已 hook " + name + ".systemReady，成功 " + ok + "/" + methods.size());
+            if (ok > 0) return;
+        }
+        logLine("[警告] AMS.systemReady 全部失败，尝试 SystemServer 兜底");
+        installSystemServerFallback(loader);
+    }
+
+    private void installSystemServerFallback(ClassLoader loader) {
+        Class<?> server = SysReflect.findClass(loader, "com.android.server.SystemServer");
+        if (server == null) {
+            logLine("[警告] SystemServer 类缺失，兜底不可用；请把状态页与 LSPosed 日志一并反馈");
+            return;
+        }
+        List<Method> methods = new ArrayList<>();
+        methods.addAll(SysReflect.findMethods(server, "run"));
+        methods.addAll(SysReflect.findMethods(server, "startOtherServices"));
+        int ok = 0;
+        for (Method method : methods) {
+            try {
+                HookHandle handle = hook(method)
+                        .setExceptionMode(ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            try {
+                                scheduleContextRecovery(chain.getThisObject(), loader);
+                            } catch (Throwable t) {
+                                logLine("兜底恢复失败：" + shortError(t));
+                            }
+                            return result;
+                        });
+                hookHandles.add(handle);
+                ok++;
+            } catch (Throwable t) {
+                logLine("[框架] hook SystemServer." + method.getName() + " 失败：" + shortError(t));
+            }
+        }
+        logLine("[框架] SystemServer 兜底 hook 成功 " + ok + "/" + methods.size());
+    }
+
+    /** 只在 AMS hook 全部失效时使用：从静态实例里找回系统 Context。 */
+    private static void scheduleContextRecovery(Object systemServer, final ClassLoader loader) {
+        if (armed) return;
+        if (handler == null) handler = new Handler(Looper.getMainLooper());
+        Runnable retry = new Runnable() {
+            int attempts = 0;
+            @Override
+            public void run() {
+                if (armed || attempts++ > 10) return;
+                Object target = findAmsStaticInstance(loader);
+                if (target == null) target = systemServer;
+                Context ctx = SysReflect.findContext(target);
+                if (ctx != null) {
+                    onSystemReady(target);
+                    return;
+                }
+                handler.postDelayed(this, 2_000L);
+            }
+        };
+        handler.postDelayed(retry, 2_000L);
+    }
+
+    private static Object findAmsStaticInstance(ClassLoader loader) {
+        Class<?> ams = SysReflect.findClass(loader, "com.android.server.am.ActivityManagerService");
+        if (ams == null) return null;
+        for (Field f : ams.getDeclaredFields()) {
+            if (!Modifier.isStatic(f.getModifiers())) continue;
+            if (!Object.class.isAssignableFrom(f.getType())) continue;
+            try {
+                f.setAccessible(true);
+                Object value = f.get(null);
+                if (value != null && value.getClass().getName().contains("ActivityManagerService")) {
+                    return value;
+                }
+            } catch (Throwable ignored) { }
+        }
+        return null;
+    }
+
+    private static void onSystemReady(Object ams) {
+        if (armed) return;
+        Context ctx = SysReflect.findContext(ams);
+        if (ctx == null) {
+            logLine("[警告] 未能从 " + (ams == null ? "null" : ams.getClass().getName())
+                    + " 取得 Context；候选字段：" + SysReflect.describeFields(
+                    ams == null ? null : ams.getClass(), "context"));
+            return;
+        }
+        armed = true;
+        handler = new Handler(Looper.getMainLooper());
+        systemContext = ctx;
+        controller = new AdbController(ctx, WirelessAdbHook::logLine);
+        logLine("[框架] 已取得系统 Context（来源 " + ams.getClass().getName() + "）");
+        flushPendingLogs();
+        controller.probe(systemClassLoader != null ? systemClassLoader : ams.getClass().getClassLoader());
+        registerCommandReceivers();
+        waitForUnlock();
+    }
+
+    private void installWeTypeHook(ClassLoader loader) {
+        Class<?> processList = SysReflect.findClass(loader, "com.android.server.am.ProcessList");
+        if (processList == null) {
+            logLine("[框架] ProcessList 缺失，跳过微信输入法进程监听（不影响无线 ADB 主功能）");
+            return;
+        }
+        int ok = 0;
+        for (Method method : SysReflect.findMethods(processList, "handleProcessStartedLocked")) {
+            try {
+                HookHandle handle = hook(method)
+                        .setExceptionMode(ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            try {
+                                if (pendingAddress != null && !copyScheduled) {
+                                    for (Object arg : chain.getArgs()) {
+                                        if (isWeTypeProcess(arg)) {
+                                            scheduleCopyAfterWeTypeReady("检测到微信输入法进程启动");
+                                            break;
+                                        }
+                                    }
+                                }
+                            } catch (Throwable ignored) { }
+                            return result;
+                        });
+                hookHandles.add(handle);
+                ok++;
+            } catch (Throwable t) {
+                logLine("[框架] hook ProcessList 失败：" + shortError(t));
+            }
+        }
+        logLine("[框架] 微信输入法进程监听就绪 " + ok + " 个 hook");
+    }
+
+    private static boolean isWeTypeProcess(Object value) {
+        if (value == null || !value.getClass().getName().endsWith(".ProcessRecord")) return false;
+        Object info = SysReflect.getField(value, "info");
+        if (info != null) {
+            Object pkg = SysReflect.getField(info, "packageName");
+            if (WETYPE_PACKAGE.equals(pkg)) return true;
+        }
+        Object name = SysReflect.getField(value, "processName");
+        return name != null && name.toString().startsWith(WETYPE_PACKAGE);
     }
 
     private static void registerCommandReceivers() {
         try {
             BroadcastReceiver receiver = new BroadcastReceiver() {
-                @Override public void onReceive(Context context, Intent intent) {
+                @Override
+                public void onReceive(Context context, Intent intent) {
                     if (intent == null || intent.getAction() == null) return;
                     String action = intent.getAction();
                     handler.post(() -> {
@@ -98,6 +292,7 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
                         } else if (ACTION_SET_MODE.equals(action)) {
                             onSetMode(intent);
                         } else if (ACTION_APPLY.equals(action)) {
+                            if (controller != null) controller.clearReverts();
                             reloadConfig();
                             enableAdb("界面请求立即应用", true);
                         }
@@ -109,9 +304,9 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
             filter.addAction(ACTION_SET_MODE);
             filter.addAction(ACTION_APPLY);
             systemContext.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
-            log("Command receivers ready (copy / set_mode / apply)");
+            logLine("命令接收器就绪（复制 / 切换模式 / 立即应用）");
         } catch (Throwable t) {
-            log("Command receiver failed: " + shortError(t));
+            logLine("命令接收器注册失败：" + shortError(t));
         }
     }
 
@@ -131,15 +326,15 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
         }
         lastCopiedAddress = null;
         lastEnableAt = 0L;
-        log("切换模式 → " + AdbModeConfig.modeLabel(cachedMode)
+        if (controller != null) controller.clearReverts();
+        logLine("切换模式 → " + AdbModeConfig.modeLabel(cachedMode)
                 + (AdbModeConfig.MODE_TCP.equals(cachedMode) ? ("，端口 " + cachedTcpPort) : ""));
         if (userUnlocked) enableAdb("切换模式", true);
-        else log("模式已保存，解锁后生效");
+        else logLine("模式已保存，解锁后生效");
     }
 
     private static void reloadConfig() {
         try {
-            // Settings.Global first (system always can read); fallback module prefs.
             String globalMode = null;
             try {
                 globalMode = Settings.Global.getString(systemContext.getContentResolver(), AdbModeConfig.GLOBAL_MODE);
@@ -161,10 +356,10 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
                 Context app = moduleContext();
                 if (app != null) cachedTcpPort = AdbModeConfig.getTcpPort(app);
             }
-            log("当前模式：" + AdbModeConfig.modeLabel(cachedMode)
+            logLine("当前模式：" + AdbModeConfig.modeLabel(cachedMode)
                     + (AdbModeConfig.MODE_TCP.equals(cachedMode) ? (" @" + cachedTcpPort) : ""));
         } catch (Throwable t) {
-            log("读取配置失败：" + shortError(t));
+            logLine("读取配置失败：" + shortError(t));
         }
     }
 
@@ -181,60 +376,29 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
         String ip = findWifiIpv4();
         int port = resolveActivePort();
         if (ip == null || port <= 0) {
-            log("Manual copy failed: mode=" + cachedMode + ", IP=" + ip + ", port=" + port);
+            logLine("手动复制失败：mode=" + cachedMode + ", IP=" + ip + ", port=" + port);
             return;
         }
         pendingAddress = null;
         copyScheduled = false;
         String address = ip + ":" + port;
-        log("Manual copy requested (immediate): " + address + " [" + cachedMode + "]");
+        logLine("手动复制（立即）：" + address + " [" + cachedMode + "]");
         copyAddress(address);
-    }
-
-    private static void hookWeTypeProcessStart(ClassLoader loader) {
-        try {
-            Class<?> processList = XposedHelpers.findClass("com.android.server.am.ProcessList", loader);
-            XposedBridge.hookAllMethods(processList, "handleProcessStartedLocked", new XC_MethodHook() {
-                @Override protected void afterHookedMethod(MethodHookParam param) {
-                    if (pendingAddress == null || copyScheduled) return;
-                    for (Object arg : param.args) {
-                        if (isWeTypeProcess(arg)) {
-                            scheduleCopyAfterWeTypeReady("检测到微信输入法进程启动");
-                            return;
-                        }
-                    }
-                }
-            });
-        } catch (Throwable t) {
-            XposedBridge.log("WirelessAdbAutoStart WeType hook failed: " + t);
-        }
-    }
-
-    private static boolean isWeTypeProcess(Object value) {
-        if (value == null || !value.getClass().getName().endsWith(".ProcessRecord")) return false;
-        try {
-            Object info = XposedHelpers.getObjectField(value, "info");
-            return WETYPE_PACKAGE.equals(XposedHelpers.getObjectField(info, "packageName"));
-        } catch (Throwable ignored) {
-            try {
-                Object name = XposedHelpers.getObjectField(value, "processName");
-                return name != null && name.toString().startsWith(WETYPE_PACKAGE);
-            } catch (Throwable ignoredAgain) { return false; }
-        }
     }
 
     private static void waitForUnlock() {
         try {
             systemContext.registerReceiver(new BroadcastReceiver() {
-                @Override public void onReceive(Context context, Intent intent) {
+                @Override
+                public void onReceive(Context context, Intent intent) {
                     onUserUnlocked("收到 USER_UNLOCKED");
                 }
             }, new IntentFilter(Intent.ACTION_USER_UNLOCKED));
             UserManager users = systemContext.getSystemService(UserManager.class);
             if (users != null && users.isUserUnlocked()) onUserUnlocked("系统已解锁");
-            else log("系统已启动，等待首次解锁");
+            else logLine("系统已启动，等待首次解锁");
         } catch (Throwable t) {
-            log("监听解锁失败：" + shortError(t));
+            logLine("监听解锁失败：" + shortError(t));
         }
     }
 
@@ -242,7 +406,7 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
         if (userUnlocked) return;
         userUnlocked = true;
         reloadConfig();
-        log(reason + "，开始保持 ADB（" + AdbModeConfig.modeLabel(cachedMode) + "）");
+        logLine(reason + "，开始保持 ADB（" + AdbModeConfig.modeLabel(cachedMode) + "）");
         registerKeepers();
         enableAdb("首次解锁", true);
     }
@@ -257,26 +421,29 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
 
     private static void registerAdbWifiObserver() {
         try {
-            Uri uri = Settings.Global.getUriFor(SETTING_ADB_WIFI);
+            Uri uri = Settings.Global.getUriFor(AdbController.SETTING_ADB_WIFI);
             systemContext.getContentResolver().registerContentObserver(uri, false, new ContentObserver(handler) {
-                @Override public void onChange(boolean selfChange) {
+                @Override
+                public void onChange(boolean selfChange) {
                     handler.post(() -> {
                         if (!AdbModeConfig.MODE_TLS.equals(cachedMode)) return;
-                        int value = getAdbWifiEnabled();
+                        int value = adbWifiEnabled();
                         if (value == 1) {
+                            if (controller != null) controller.clearReverts();
                             checkAddress("开关变为开启", 0, false);
                             return;
                         }
                         if (value == 0) {
-                            log("检测到无线调试被关闭，准备重新开启");
+                            logLine("检测到无线调试被关闭，准备重新开启");
+                            if (controller != null && controller.shouldSuppressReenable("ContentObserver")) return;
                             enableAdb("ContentObserver", false);
                         }
                     });
                 }
             });
-            log("已注册 adb_wifi_enabled 监听（仅 TLS 模式生效）");
+            logLine("已注册 adb_wifi_enabled 监听（仅 TLS 模式生效）");
         } catch (Throwable t) {
-            log("注册无线调试开关监听失败：" + shortError(t));
+            logLine("注册无线调试开关监听失败：" + shortError(t));
         }
     }
 
@@ -288,35 +455,39 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
                     .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                     .build();
             cm.registerNetworkCallback(request, new ConnectivityManager.NetworkCallback() {
-                @Override public void onAvailable(Network network) {
+                @Override
+                public void onAvailable(Network network) {
                     handler.postDelayed(() -> {
                         if (!userUnlocked) return;
-                        log("Wi-Fi 可用，检查 ADB（" + cachedMode + "）");
+                        logLine("Wi-Fi 可用，检查 ADB（" + cachedMode + "）");
+                        if (controller != null) controller.clearReverts();
                         keepAlive("Wi-Fi 恢复");
                     }, WIFI_RESTORE_DELAY_MS);
                 }
 
-                @Override public void onLost(Network network) {
-                    handler.post(() -> log("Wi-Fi 断开，等待恢复后再保持 ADB"));
+                @Override
+                public void onLost(Network network) {
+                    handler.post(() -> logLine("Wi-Fi 断开，等待恢复后再保持 ADB"));
                 }
             });
-            log("已注册 Wi-Fi 网络回调");
+            logLine("已注册 Wi-Fi 网络回调");
         } catch (Throwable t) {
-            log("注册 Wi-Fi 回调失败：" + shortError(t));
+            logLine("注册 Wi-Fi 回调失败：" + shortError(t));
         }
     }
 
     private static void registerScreenOnReceiver() {
         try {
             systemContext.registerReceiver(new BroadcastReceiver() {
-                @Override public void onReceive(Context context, Intent intent) {
+                @Override
+                public void onReceive(Context context, Intent intent) {
                     if (!userUnlocked) return;
                     handler.postDelayed(() -> keepAlive("亮屏检查"), 1_000L);
                 }
             }, new IntentFilter(Intent.ACTION_SCREEN_ON));
-            log("已注册亮屏检查");
+            logLine("已注册亮屏检查");
         } catch (Throwable t) {
-            log("注册亮屏检查失败：" + shortError(t));
+            logLine("注册亮屏检查失败：" + shortError(t));
         }
     }
 
@@ -329,7 +500,7 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
             }
             return;
         }
-        if (getAdbWifiEnabled() != 1) {
+        if (adbWifiEnabled() != 1) {
             enableAdb(reason, false);
         } else {
             checkAddress(reason, 0, false);
@@ -337,77 +508,43 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
     }
 
     private static void enableAdb(String reason, boolean forceCopy) {
-        if (systemContext == null || handler == null) return;
+        if (controller == null || systemContext == null || handler == null) return;
         long now = System.currentTimeMillis();
         if (!forceCopy && now - lastEnableAt < REENABLE_COOLDOWN_MS) {
-            log("跳过重复开启（冷却中，原因：" + reason + "）");
+            logLine("跳过重复开启（冷却中，原因：" + reason + "）");
             return;
         }
         if (!enableInFlight.compareAndSet(false, true)) {
-            log("开启进行中，跳过：" + reason);
+            logLine("开启进行中，跳过：" + reason);
             return;
         }
         lastEnableAt = now;
         try {
             if (AdbModeConfig.MODE_TCP.equals(cachedMode)) {
-                enableTcpMode(reason, forceCopy);
+                controller.enableTcp(cachedTcpPort, reason);
             } else {
-                enableTlsMode(reason, forceCopy);
+                controller.enableTls(reason);
             }
+            checkAddress(reason, 0, forceCopy);
         } catch (Throwable t) {
-            log("开启 ADB 失败：" + shortError(t));
+            logLine("开启 ADB 失败：" + shortError(t));
         } finally {
             enableInFlight.set(false);
-        }
-    }
-
-    private static void enableTlsMode(String reason, boolean forceCopy) {
-        // Leaving classic TCP avoids two listeners confusing users; optional clear.
-        try {
-            String currentTcp = getSystemProperty(PROP_TCP_PORT, "");
-            if (currentTcp != null && !currentTcp.isEmpty() && !"-1".equals(currentTcp) && !"0".equals(currentTcp)) {
-                setSystemProperty(PROP_TCP_PORT, "-1");
-                log("TLS 模式：已清除 service.adb.tcp.port（原 " + currentTcp + "）");
-                restartAdbd("切回 TLS");
-            }
-        } catch (Throwable t) {
-            log("清除 TCP 端口时出错（可忽略）：" + shortError(t));
-        }
-        boolean changed = Settings.Global.putInt(systemContext.getContentResolver(), SETTING_ADB_WIFI, 1);
-        log((changed ? "已请求开启无线调试 TLS" : "无线调试设置未变化（可能已经开启）") + "，原因：" + reason);
-        checkAddress(reason, 0, forceCopy);
-    }
-
-    private static void enableTcpMode(String reason, boolean forceCopy) {
-        int port = cachedTcpPort > 0 ? cachedTcpPort : AdbModeConfig.DEFAULT_TCP_PORT;
-        setSystemProperty(PROP_TCP_PORT, String.valueOf(port));
-        log("已设置 " + PROP_TCP_PORT + "=" + port + "，原因：" + reason);
-        // Ensure adbd picks up the port (same effect as `adb tcpip port`).
-        restartAdbd("TCP 模式");
-        checkAddress(reason, 0, forceCopy);
-    }
-
-    private static void restartAdbd(String reason) {
-        try {
-            // ctl.restart is the standard init trigger used by `adb tcpip`.
-            setSystemProperty("ctl.restart", "adbd");
-            log("已请求重启 adbd（" + reason + "）");
-        } catch (Throwable t) {
-            log("重启 adbd 失败：" + shortError(t));
         }
     }
 
     private static void checkAddress(String reason, int attempt, boolean forceCopy) {
         handler.postDelayed(() -> {
             if (AdbModeConfig.MODE_TLS.equals(cachedMode)) {
-                if (getAdbWifiEnabled() != 1 && attempt == 0) {
+                if (adbWifiEnabled() != 1 && attempt == 0) {
                     enableAdb(reason + "-二次确认", forceCopy);
                     return;
                 }
             } else if (AdbModeConfig.MODE_TCP.equals(cachedMode)) {
                 if (!isTcpPortReady(cachedTcpPort) && attempt == 0) {
-                    // prop may not have been applied yet; nudge once
-                    setSystemProperty(PROP_TCP_PORT, String.valueOf(cachedTcpPort));
+                    try {
+                        SysReflect.setSystemProperty(AdbController.PROP_TCP_PORT, String.valueOf(cachedTcpPort));
+                    } catch (Throwable ignored) { }
                 }
             }
 
@@ -417,49 +554,53 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
                 waitForWeType(ip + ":" + port, forceCopy);
             } else if (attempt < ADDRESS_POLL_MAX) {
                 if (attempt == 0 || attempt == 4 || attempt == 8) {
-                    log("等待地址就绪（" + reason + "/" + cachedMode + "）：IP=" + ip
+                    logLine("等待地址就绪（" + reason + "/" + cachedMode + "）：IP=" + ip
                             + "，端口=" + port + "，第 " + (attempt + 1) + " 次");
                 }
                 if (AdbModeConfig.MODE_TLS.equals(cachedMode) && (attempt == 3 || attempt == 7)) {
                     try {
-                        Settings.Global.putInt(systemContext.getContentResolver(), SETTING_ADB_WIFI, 1);
+                        Settings.Global.putInt(systemContext.getContentResolver(),
+                                AdbController.SETTING_ADB_WIFI, 1);
                     } catch (Throwable ignored) { }
                 }
                 if (AdbModeConfig.MODE_TCP.equals(cachedMode) && (attempt == 3 || attempt == 7)) {
-                    setSystemProperty(PROP_TCP_PORT, String.valueOf(cachedTcpPort));
-                    restartAdbd("TCP 轮询重试");
+                    try {
+                        SysReflect.setSystemProperty(AdbController.PROP_TCP_PORT, String.valueOf(cachedTcpPort));
+                    } catch (Throwable ignored) { }
+                    if (controller != null) controller.restartAdbd("TCP 轮询重试");
                 }
                 checkAddress(reason, attempt + 1, forceCopy);
             } else {
-                log("获取地址失败（" + reason + "/" + cachedMode + "）：IP=" + ip + "，端口=" + port);
+                logLine("获取地址失败（" + reason + "/" + cachedMode + "）：IP=" + ip + "，端口=" + port);
             }
         }, attempt == 0 ? 1_500L : ADDRESS_POLL_INTERVAL_MS);
     }
 
     private static int resolveActivePort() {
         if (AdbModeConfig.MODE_TCP.equals(cachedMode)) {
-            int prop = getSystemPropertyInt(PROP_TCP_PORT, -1);
+            int prop = SysReflect.getSystemPropertyInt(AdbController.PROP_TCP_PORT, -1);
             if (prop > 0) return prop;
             return cachedTcpPort > 0 ? cachedTcpPort : -1;
         }
-        return getTlsPort();
+        return controller == null ? -1 : controller.tlsPort();
     }
 
     private static boolean isTcpPortReady(int expected) {
-        int prop = getSystemPropertyInt(PROP_TCP_PORT, -1);
-        return prop > 0 && (expected <= 0 || prop == expected);
+        return controller != null && controller.tcpPortReady(expected);
+    }
+
+    private static int adbWifiEnabled() {
+        return controller == null ? -1 : controller.adbWifiEnabled();
     }
 
     private static void waitForWeType(String address, boolean forceCopy) {
-        if (!forceCopy && address.equals(lastCopiedAddress)) {
-            return;
-        }
+        if (!forceCopy && address.equals(lastCopiedAddress)) return;
         if (address.equals(pendingAddress) && copyScheduled) return;
         pendingAddress = address;
         if (isWeTypeRunning()) {
             scheduleCopyAfterWeTypeReady(forceCopy ? "手动/强制复制" : "微信输入法已经运行");
         } else {
-            log("无线 ADB 地址已就绪，等待微信输入法启动后复制：" + address);
+            logLine("无线 ADB 地址已就绪，等待微信输入法启动后复制：" + address);
         }
     }
 
@@ -480,7 +621,7 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
     private static void scheduleCopyAfterWeTypeReady(String reason) {
         if (pendingAddress == null || copyScheduled) return;
         copyScheduled = true;
-        log(reason + "，等待 3 秒初始化跨设备粘贴服务");
+        logLine(reason + "，等待 3 秒初始化跨设备粘贴服务");
         handler.postDelayed(() -> {
             String address = pendingAddress;
             pendingAddress = null;
@@ -489,40 +630,16 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
         }, 3000L);
     }
 
-    private static int getAdbWifiEnabled() {
+    private static void copyAddress(String address) {
         try {
-            return Settings.Global.getInt(systemContext.getContentResolver(), SETTING_ADB_WIFI, 0);
+            ClipboardManager clipboard = systemContext.getSystemService(ClipboardManager.class);
+            if (clipboard == null) throw new IllegalStateException("剪贴板服务不可用");
+            clipboard.setPrimaryClip(ClipData.newPlainText("无线 ADB 地址", address));
+            lastCopiedAddress = address;
+            logLine("已复制无线 ADB 地址：" + address);
         } catch (Throwable t) {
-            return -1;
+            logLine("复制地址失败：" + shortError(t));
         }
-    }
-
-    private static int getTlsPort() {
-        return getSystemPropertyInt(PROP_TLS_PORT, -1);
-    }
-
-    private static int getSystemPropertyInt(String key, int def) {
-        try {
-            Class<?> properties = Class.forName("android.os.SystemProperties");
-            return (Integer) XposedHelpers.callStaticMethod(properties, "getInt", key, def);
-        } catch (Throwable ignored) { return def; }
-    }
-
-    private static String getSystemProperty(String key, String def) {
-        try {
-            Class<?> properties = Class.forName("android.os.SystemProperties");
-            return (String) XposedHelpers.callStaticMethod(properties, "get", key, def);
-        } catch (Throwable ignored) { return def; }
-    }
-
-    private static void setSystemProperty(String key, String value) {
-        Class<?> properties;
-        try {
-            properties = Class.forName("android.os.SystemProperties");
-        } catch (Throwable t) {
-            throw new IllegalStateException("SystemProperties 不可用", t);
-        }
-        XposedHelpers.callStaticMethod(properties, "set", key, value);
     }
 
     private static String findWifiIpv4() {
@@ -534,7 +651,8 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
                 for (InetAddress address : Collections.list(network.getInetAddresses())) {
                     if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
                         String host = address.getHostAddress();
-                        if (host != null && host.startsWith("172.19.")) continue;
+                        if (host == null) continue;
+                        if (host.startsWith("172.19.") || host.startsWith("198.19.")) continue;
                         return host;
                     }
                 }
@@ -543,24 +661,23 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
         return null;
     }
 
-    private static void copyAddress(String address) {
-        try {
-            ClipboardManager clipboard = systemContext.getSystemService(ClipboardManager.class);
-            if (clipboard == null) throw new IllegalStateException("剪贴板服务不可用");
-            clipboard.setPrimaryClip(ClipData.newPlainText("无线 ADB 地址", address));
-            lastCopiedAddress = address;
-            log("已复制无线 ADB 地址：" + address);
-        } catch (Throwable t) {
-            log("复制地址失败：" + shortError(t));
-        }
-    }
-
-    private static void log(String message) {
+    /** 同时写 LSPosed 日志与 Settings.Global（状态页可读）；开机早期先缓存。 */
+    private static void logLine(String message) {
         String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(new Date());
-        String line = time + "  " + message;
-        XposedBridge.log("WirelessAdbAutoStart: " + line);
-        if (systemContext == null) return;
-        // Settings.Global：system_server 开机早期就能写（同模式配置）。
+        final String line = time + "  " + message;
+        WirelessAdbHook self = instance;
+        if (self != null) {
+            try {
+                self.log(Log.INFO, TAG, line);
+            } catch (Throwable ignored) { }
+        }
+        if (systemContext == null) {
+            synchronized (pendingLogs) {
+                pendingLogs.add(line);
+                if (pendingLogs.size() > 40) pendingLogs.remove(0);
+            }
+            return;
+        }
         if (EventLog.appendGlobal(systemContext, line)) return;
         try {
             Intent intent = new Intent(ACTION_LOG)
@@ -569,7 +686,20 @@ public final class WirelessAdbHook implements IXposedHookLoadPackage {
                     .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES | Intent.FLAG_RECEIVER_FOREGROUND);
             systemContext.sendBroadcast(intent);
         } catch (Throwable t) {
-            XposedBridge.log("WirelessAdbAutoStart log broadcast failed: " + t);
+            if (self != null) {
+                try {
+                    self.log(Log.WARN, TAG, "log broadcast failed: " + t);
+                } catch (Throwable ignored) { }
+            }
+        }
+    }
+
+    private static void flushPendingLogs() {
+        synchronized (pendingLogs) {
+            for (String line : pendingLogs) {
+                EventLog.appendGlobal(systemContext, line);
+            }
+            pendingLogs.clear();
         }
     }
 

@@ -1,36 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/wadb_bg</item>
-        <item name="android:colorPrimary">@color/wadb_pink</item>
-        <item name="android:colorAccent">@color/wadb_pink</item>
-        <item name="android:statusBarColor">@color/wadb_status_bar</item>
-        <item name="android:navigationBarColor">@color/wadb_bg</item>
+        <item name="android:windowBackground">@color/fl_bg</item>
+        <item name="android:colorPrimary">@color/fl_accent</item>
+        <item name="android:colorAccent">@color/fl_accent</item>
+        <item name="android:statusBarColor">@color/fl_status_bar</item>
+        <item name="android:navigationBarColor">@color/fl_bg</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:textColorPrimary">@color/wadb_fg</item>
+        <item name="android:textColorPrimary">@color/fl_on_surface</item>
         <item name="android:fontFamily">sans-serif</item>
     </style>
 
     <style name="Wadb.ModeButton" parent="@android:style/Widget.Material.Button.Borderless">
-        <item name="android:minHeight">56dp</item>
-        <item name="android:paddingStart">20dp</item>
-        <item name="android:paddingEnd">20dp</item>
+        <item name="android:minHeight">48dp</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:textSize">15sp</item>
-        <item name="android:gravity">center_vertical|start</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:gravity">center</item>
         <item name="android:background">@null</item>
         <item name="android:stateListAnimator">@null</item>
     </style>
 
     <style name="Wadb.ActionButton" parent="@android:style/Widget.Material.Button.Borderless">
-        <item name="android:minHeight">76dp</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:textSize">13sp</item>
-        <item name="android:textColor">@color/wadb_cyan_text</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/fl_on_surface</item>
         <item name="android:background">@null</item>
         <item name="android:stateListAnimator">@null</item>
-        <item name="android:gravity">center</item>
+        <item name="android:gravity">center_vertical|start</item>
     </style>
 </resources>

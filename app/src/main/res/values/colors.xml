@@ -35,4 +35,24 @@
     <color name="wadb_mode_text">#3C425D</color>
     <color name="wadb_address">#2F3B57</color>
     <color name="wadb_status_bar">#FFF9EF</color>
+
+    <!-- FLClash Material You 风格 · 浅色（蓝色强调，对应 FLClash 浅色手机端） -->
+    <color name="fl_bg">#F3F5F9</color>
+    <color name="fl_surface">#FFFFFF</color>
+    <color name="fl_surface_variant">#EEF1F7</color>
+    <color name="fl_inner">#F7F9FC</color>
+    <color name="fl_on_surface">#1B1D24</color>
+    <color name="fl_on_surface_variant">#858C9B</color>
+    <color name="fl_accent">#2979FF</color>
+    <color name="fl_on_accent">#FFFFFF</color>
+    <color name="fl_accent_soft">#E3EEFF</color>
+    <color name="fl_running_bg">#DDF3E4</color>
+    <color name="fl_running_fg">#188A4C</color>
+    <color name="fl_idle_bg">#FFF0DE</color>
+    <color name="fl_idle_fg">#B26A18</color>
+    <color name="fl_log_bg">#F5F7FB</color>
+    <color name="fl_nav_bg">#FFFFFF</color>
+    <color name="fl_icon">#5C6472</color>
+    <color name="fl_status_bar">#F3F5F9</color>
+    <color name="fl_divider">#E6EAF1</color>
 </resources>

@@ -1,44 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/action_btn"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:clipToPadding="false"
-    android:paddingEnd="3dp"
-    android:paddingBottom="4dp">
+    android:layout_height="64dp"
+    android:background="@drawable/fl_round_sm"
+    android:backgroundTint="@color/fl_inner"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?android:attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp">
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_marginStart="3dp"
-        android:layout_marginTop="4dp"
-        android:background="@drawable/bg_action_shadow" />
-
-    <LinearLayout
-        android:id="@+id/action_btn"
-        android:layout_width="match_parent"
-        android:layout_height="76dp"
-        android:background="@drawable/bg_action"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="8dp">
+    <FrameLayout
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:background="@drawable/fl_oval"
+        android:backgroundTint="@color/fl_surface_variant">
 
         <ImageView
             android:id="@+id/action_icon"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="19dp"
+            android:layout_height="19dp"
+            android:layout_gravity="center"
             android:contentDescription="@null"
-            android:src="@drawable/ic_check_cyan" />
+            android:src="@drawable/ic_check_cyan"
+            android:tint="@color/fl_accent" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/action_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
             android:text="立即应用"
-            android:textColor="@color/wadb_cyan_text"
-            android:textSize="13sp"
+            android:textColor="@color/fl_on_surface"
+            android:textSize="14sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/action_sub"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text=""
+            android:textColor="@color/fl_on_surface_variant"
+            android:textSize="11sp" />
     </LinearLayout>
-</FrameLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="›"
+        android:textColor="@color/fl_on_surface_variant"
+        android:textSize="20sp" />
+</LinearLayout>

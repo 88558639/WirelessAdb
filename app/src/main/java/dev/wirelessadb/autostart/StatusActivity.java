@@ -2,7 +2,7 @@ package dev.wirelessadb.autostart;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Color;
+import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
@@ -19,9 +19,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class StatusActivity extends Activity {
-    private static final int LOG_PREVIEW_LINES = 6;
+    private static final int LOG_PREVIEW_LINES = 12;
     private static final Pattern ADDRESS_IN_LOG =
             Pattern.compile("(\\d{1,3}(?:\\.\\d{1,3}){3}:\\d{1,5})");
+
+    private static final int[] NAV_ITEMS = {
+            R.id.nav_dashboard, R.id.nav_mode, R.id.nav_actions, R.id.nav_log};
+    private static final int[] NAV_ICONS = {
+            R.id.nav_dashboard_icon, R.id.nav_mode_icon, R.id.nav_actions_icon, R.id.nav_log_icon};
+    private static final int[] NAV_LABELS = {
+            R.id.nav_dashboard_label, R.id.nav_mode_label, R.id.nav_actions_label, R.id.nav_log_label};
+    private static final int[] NAV_TARGETS = {
+            R.id.section_hero, R.id.section_mode, R.id.section_actions, R.id.section_log};
 
     private TextView noticeChip;
     private TextView statusTitle;
@@ -30,14 +39,10 @@ public final class StatusActivity extends Activity {
     private EditText portInput;
     private View modeTlsBtn;
     private View modeTcpBtn;
-    private View modeTlsShadow;
-    private View modeTcpShadow;
     private ImageView modeTlsIcon;
     private ImageView modeTcpIcon;
     private TextView modeTlsText;
     private TextView modeTcpText;
-    private ImageView modeTlsCheck;
-    private ImageView modeTcpCheck;
     private View logEmpty;
     private ScrollView logScroll;
     private TextView logView;
@@ -45,24 +50,30 @@ public final class StatusActivity extends Activity {
     private TextView copyLabel;
     private boolean copiedFlash;
 
+    private ScrollView scroll;
+    private View applyBtn;
+    private final View[] navItems = new View[NAV_ITEMS.length];
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_status);
         applySystemInsets();
         bindViews();
         wireActions();
+        wireNav();
         refreshAll("已准备就绪");
     }
 
-    /** 避开状态栏 / 导航栏，避免标题卡和系统栏重叠。 */
+    /** 避开状态栏 / 导航栏，并给固定底部导航条留出空间。 */
     private void applySystemInsets() {
-        View scroll = findViewById(R.id.scroll);
-        int extraTop = Math.round(12 * getResources().getDisplayMetrics().density);
-        int extraBottom = Math.round(8 * getResources().getDisplayMetrics().density);
+        scroll = findViewById(R.id.scroll);
+        int extraTop = dp(12);
+        int navSpace = dp(112);
         scroll.setOnApplyWindowInsetsListener((v, insets) -> {
             int top = insets.getSystemWindowInsetTop();
             int bottom = insets.getSystemWindowInsetBottom();
-            v.setPadding(v.getPaddingLeft(), top + extraTop, v.getPaddingRight(), bottom + extraBottom);
+            v.setPadding(v.getPaddingLeft(), top + extraTop,
+                    v.getPaddingRight(), bottom + navSpace);
             return insets.consumeSystemWindowInsets();
         });
         scroll.requestApplyInsets();
@@ -81,14 +92,10 @@ public final class StatusActivity extends Activity {
         portInput = findViewById(R.id.port_input);
         modeTlsBtn = findViewById(R.id.mode_tls_btn);
         modeTcpBtn = findViewById(R.id.mode_tcp_btn);
-        modeTlsShadow = findViewById(R.id.mode_tls_shadow);
-        modeTcpShadow = findViewById(R.id.mode_tcp_shadow);
         modeTlsIcon = findViewById(R.id.mode_tls_icon);
         modeTcpIcon = findViewById(R.id.mode_tcp_icon);
         modeTlsText = findViewById(R.id.mode_tls_text);
         modeTcpText = findViewById(R.id.mode_tcp_text);
-        modeTlsCheck = findViewById(R.id.mode_tls_check);
-        modeTcpCheck = findViewById(R.id.mode_tcp_check);
         logEmpty = findViewById(R.id.log_empty);
         logScroll = findViewById(R.id.log_scroll);
         logView = findViewById(R.id.log_view);
@@ -96,34 +103,44 @@ public final class StatusActivity extends Activity {
         View applyRoot = findViewById(R.id.action_apply);
         View copyRoot = findViewById(R.id.action_copy);
         View refreshRoot = findViewById(R.id.action_refresh);
-        setupAction(applyRoot, R.drawable.ic_check_cyan, "立即应用", v -> {
-            sendBroadcast(new Intent("dev.wirelessadb.autostart.APPLY").setPackage("android"));
-            setNotice("已请求立即应用");
-            Toast.makeText(this, "已请求立即应用", Toast.LENGTH_SHORT).show();
-            portInput.postDelayed(() -> refreshAll("记录已刷新"), 1500);
-        });
-        setupAction(copyRoot, R.drawable.ic_copy, "复制地址", v -> {
-            sendBroadcast(new Intent("dev.wirelessadb.autostart.REQUEST_COPY").setPackage("android"));
-            flashCopied();
-            setNotice("地址已复制");
-            Toast.makeText(this, "已请求立即复制", Toast.LENGTH_SHORT).show();
-            portInput.postDelayed(() -> refreshAll(null), 1200);
-        });
-        setupAction(refreshRoot, R.drawable.ic_refresh, "刷新记录", v -> refreshAll("记录已刷新"));
+        applyBtn = applyRoot.findViewById(R.id.action_btn);
+        setupAction(applyRoot, R.drawable.ic_check_cyan, "立即应用",
+                "向 system_server 请求开启无线 ADB", v -> {
+                    sendBroadcast(new Intent("dev.wirelessadb.autostart.APPLY").setPackage("android"));
+                    setNotice("已请求立即应用");
+                    Toast.makeText(this, "已请求立即应用", Toast.LENGTH_SHORT).show();
+                    portInput.postDelayed(() -> refreshAll("记录已刷新"), 1500);
+                });
+        setupAction(copyRoot, R.drawable.ic_copy, "复制地址",
+                "把当前 IP:端口写入剪贴板", v -> {
+                    sendBroadcast(new Intent("dev.wirelessadb.autostart.REQUEST_COPY").setPackage("android"));
+                    flashCopied();
+                    setNotice("地址已复制");
+                    Toast.makeText(this, "已请求立即复制", Toast.LENGTH_SHORT).show();
+                    portInput.postDelayed(() -> refreshAll(null), 1200);
+                });
+        setupAction(refreshRoot, R.drawable.ic_refresh, "刷新记录",
+                "重新读取状态页与运行日志", v -> refreshAll("记录已刷新"));
+
+        findViewById(R.id.hero_action).setOnClickListener(v -> applyBtn.performClick());
 
         copyIcon = copyRoot.findViewById(R.id.action_icon);
         copyLabel = copyRoot.findViewById(R.id.action_label);
     }
 
-    private void setupAction(View root, int iconRes, String label, View.OnClickListener click) {
+    private void setupAction(View root, int iconRes, String label, String sub,
+                             View.OnClickListener click) {
         ImageView icon = root.findViewById(R.id.action_icon);
         TextView text = root.findViewById(R.id.action_label);
+        TextView subView = root.findViewById(R.id.action_sub);
         View btn = root.findViewById(R.id.action_btn);
         icon.setImageResource(iconRes);
         text.setText(label);
+        subView.setText(sub);
         btn.setOnClickListener(v -> {
-            v.animate().translationY(4f).setDuration(80)
-                    .withEndAction(() -> v.animate().translationY(0f).setDuration(80).start())
+            v.animate().scaleX(0.98f).scaleY(0.98f).setDuration(70)
+                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f)
+                            .setDuration(70).start())
                     .start();
             click.onClick(v);
         });
@@ -133,6 +150,30 @@ public final class StatusActivity extends Activity {
         modeTlsBtn.setOnClickListener(v -> switchMode(AdbModeConfig.MODE_TLS));
         modeTcpBtn.setOnClickListener(v -> switchMode(AdbModeConfig.MODE_TCP));
         portInput.setText(String.valueOf(AdbModeConfig.getTcpPort(this)));
+    }
+
+    /** 底部四项作为页面锚点，点击滚动到对应区块并高亮。 */
+    private void wireNav() {
+        for (int i = 0; i < NAV_ITEMS.length; i++) {
+            final int index = i;
+            navItems[i] = findViewById(NAV_ITEMS[i]);
+            navItems[i].setOnClickListener(v -> {
+                setNavSelected(index);
+                View target = findViewById(NAV_TARGETS[index]);
+                scroll.smoothScrollTo(0, Math.max(0, target.getTop() - dp(16)));
+            });
+        }
+    }
+
+    private void setNavSelected(int active) {
+        for (int i = 0; i < navItems.length; i++) {
+            if (navItems[i] == null) continue;
+            int color = getColor(i == active ? R.color.fl_accent : R.color.fl_icon);
+            ImageView icon = navItems[i].findViewById(NAV_ICONS[i]);
+            TextView label = navItems[i].findViewById(NAV_LABELS[i]);
+            icon.setImageTintList(ColorStateList.valueOf(color));
+            label.setTextColor(color);
+        }
     }
 
     private void switchMode(String mode) {
@@ -187,25 +228,34 @@ public final class StatusActivity extends Activity {
         addressView.setText(address == null ? "等待地址…" : address);
         boolean ready = address != null;
         statusTitle.setText(ready ? "连接已就绪" : "等待连接");
+        statusTitle.setBackgroundTintList(ColorStateList.valueOf(
+                getColor(ready ? R.color.fl_running_bg : R.color.fl_idle_bg)));
+        statusTitle.setTextColor(getColor(ready ? R.color.fl_running_fg : R.color.fl_idle_fg));
+        boolean moduleLoaded = log != null && log.contains("[框架] 模块已加载");
         if (noticeOverride != null) {
             setNotice(noticeOverride);
         } else if (!copiedFlash) {
-            setNotice(ready ? "已准备就绪" : "等待模块生效");
+            if (!moduleLoaded) {
+                setNotice("模块未加载 · 查作用域与框架版本");
+            } else {
+                setNotice(ready ? "已准备就绪" : "等待模块生效");
+            }
         }
     }
 
     private void updateModeButtons(String mode) {
         boolean tls = AdbModeConfig.MODE_TLS.equals(mode);
-        modeTlsBtn.setBackgroundResource(tls ? R.drawable.bg_mode_selected : R.drawable.bg_mode_idle);
-        modeTcpBtn.setBackgroundResource(tls ? R.drawable.bg_mode_idle : R.drawable.bg_mode_selected);
-        modeTlsShadow.setBackgroundResource(tls ? R.drawable.bg_mode_selected_shadow : R.drawable.bg_mode_idle_shadow);
-        modeTcpShadow.setBackgroundResource(tls ? R.drawable.bg_mode_idle_shadow : R.drawable.bg_mode_selected_shadow);
-        modeTlsText.setTextColor(tls ? Color.WHITE : getColor(R.color.wadb_ink));
-        modeTcpText.setTextColor(tls ? getColor(R.color.wadb_ink) : Color.WHITE);
-        modeTlsIcon.setImageResource(tls ? R.drawable.ic_wifi_on_pink : R.drawable.ic_wifi_idle);
-        modeTcpIcon.setImageResource(tls ? R.drawable.ic_link_idle : R.drawable.ic_link_on_pink);
-        modeTlsCheck.setVisibility(tls ? View.VISIBLE : View.GONE);
-        modeTcpCheck.setVisibility(tls ? View.GONE : View.VISIBLE);
+        int selected = getColor(R.color.fl_accent);
+        int idle = getColor(R.color.fl_surface_variant);
+        int selectedText = getColor(R.color.fl_on_accent);
+        int idleText = getColor(R.color.fl_on_surface_variant);
+
+        modeTlsBtn.setBackgroundTintList(ColorStateList.valueOf(tls ? selected : idle));
+        modeTcpBtn.setBackgroundTintList(ColorStateList.valueOf(tls ? idle : selected));
+        modeTlsText.setTextColor(tls ? selectedText : idleText);
+        modeTcpText.setTextColor(tls ? idleText : selectedText);
+        modeTlsIcon.setImageTintList(ColorStateList.valueOf(tls ? selectedText : idleText));
+        modeTcpIcon.setImageTintList(ColorStateList.valueOf(tls ? idleText : selectedText));
     }
 
     private void setNotice(String text) {
@@ -275,5 +325,9 @@ public final class StatusActivity extends Activity {
             }
         } catch (Throwable ignored) { }
         return null;
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 }

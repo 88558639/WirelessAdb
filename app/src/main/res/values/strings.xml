@@ -2,4 +2,5 @@
 <resources>
     <!-- 不换行空格，避免「无线 ADB 自启」被拆成多行 -->
     <string name="wadb_title">无线&#160;ADB&#160;自启</string>
+    <string name="wadb_desc">解锁后开启无线 ADB：TLS 随机端口或 TCP 固定端口，可选模式并复制地址。libxposed API 102，作用域为系统框架。</string>
 </resources>
