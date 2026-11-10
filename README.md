@@ -9,6 +9,8 @@
   <img src="docs/screenshot.png" alt="无线 ADB 自启状态页" width="360" />
 </p>
 
+> 本仓库是 [shirenran/WirelessAdb-LSPosed](https://github.com/shirenran/WirelessAdb-LSPosed) 的 fork，在原作基础上适配 ColorOS 17 / Android 17 并持续维护。原作版权与 MIT 许可见 [LICENSE](LICENSE) 与文末[致谢](#致谢)。
+
 ## 功能
 1、TLS 模式：系统「无线调试」（adb_wifi_enabled），端口随机，需配对
 
@@ -23,6 +25,8 @@
 6、开机早期日志写入 Settings.Global，状态页可查看
 
 ## 这次改了什么
+
+> 1.0.18 是原仓库 [shirenran/WirelessAdb-LSPosed](https://github.com/shirenran/WirelessAdb-LSPosed) 的最后一个版本，本 fork 从 1.1.0 起继续开发。
 
 | 项 | 1.0.18（legacy） | 1.1.1 |
 |---|---|---|
@@ -143,6 +147,22 @@ unzip -l app/build/outputs/apk/release/app-release.apk | grep META-INF/xposed
 
 应看到 `module.prop`、`java_init.list`、`scope.list` 三个文件，且不应再出现 `assets/xposed_init` 与 `xposedminversion`。
 
+## 致谢
+
+本项目源自 [shirenran/WirelessAdb-LSPosed](https://github.com/shirenran/WirelessAdb-LSPosed)（原作者 shirenran，MIT 协议），最初版本为 1.0.18。
+
+本 fork 在原作基础上做了以下主要改动，均已实机验证（一加 15 / ColorOS V17 / Android 17 / LSPosed 2.2.1）：
+
+- **迁移到 libxposed API 102**：移除 legacy Xposed 82 声明，适配 LSPosed 2.1.0+，可直接注入 `system_server`。
+- **修复 Android 17 上 TLS 端口读取失败**：Android 17 不再把端口写进 `service.adb.tls.port`，改为「系统属性 → `AdbService.getAdbWirelessPort()` → `dumpsys adb` 正则」三级探测，解决地址端口显示 `-1`。
+- **修复无谓重启 adbd 导致的无线 ADB 断连**：目标配置未变时不再重启 adbd，端口是否在监听用 Socket 实测而非只看属性值。
+- **模块加载状态判定改用独立标记**：以 `Settings.Global` + `boot_count` 锚定，不再依赖会滚动截断、且跨重启残留的日志文本。
+- **状态页改版**：单页 Dashboard、统一线性图标、界面文案中文化、按钮按压反馈改为带圆角遮罩的自定义波纹。
+
+感谢原作者 shirenran 的开源贡献。如发现上游仍存在的问题，欢迎在原仓库反馈。
+
 ## 许可
 
 MIT
+
+原作 `Copyright (c) 2026 shirenran` 的版权声明完整保留于 [LICENSE](LICENSE)。本 fork 的改动部分以 MIT 协议发布。
