@@ -38,7 +38,7 @@ BUILD = os.path.join(ROOT, 'build')
 # 108dp 画布对应的各密度像素倍率
 DENSITIES = [('mdpi', 1.0), ('hdpi', 1.5), ('xhdpi', 2.0), ('xxhdpi', 3.0), ('xxxhdpi', 4.0)]
 
-CONTENT_SCALE = 0.76   # 图形在 108dp 画布中的占比
+CONTENT_SCALE = 0.608  # 图形在 108dp 画布中的占比（0.76 缩小 20%）
 MASK_DIAMETER_DP = 72.0  # launcher 可见遮罩直径
 
 
@@ -126,8 +126,9 @@ def make_background_png(model, size):
 
 
 def write_background_xml(cols):
-    """备份一份矢量渐变背景（供无 PNG 资源时回退，Android 12+ 主题取色用不到）。"""
-    path = os.path.join(RES, 'drawable', 'ic_launcher_background.xml')
+    """导出一份矢量渐变背景到 build/ 作参考（不写入 res，避免与位图背景层重复）。"""
+    os.makedirs(BUILD, exist_ok=True)
+    path = os.path.join(BUILD, 'ic_launcher_background_gradient.xml')
     xml = ('<?xml version="1.0" encoding="utf-8"?>\n'
            '<shape xmlns:android="http://schemas.android.com/apk/res/android"\n'
            '    android:shape="rectangle">\n'
