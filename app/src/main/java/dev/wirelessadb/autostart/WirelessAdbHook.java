@@ -640,9 +640,15 @@ public final class WirelessAdbHook extends XposedModule {
         if (address.equals(pendingAddress) && copyScheduled) return;
         pendingAddress = address;
         if (isWeTypeRunning()) {
-            scheduleCopyAfterWeTypeReady(forceCopy ? "手动/强制复制" : "微信输入法已经运行");
+            scheduleCopyAfterWeTypeReady(forceCopy ? "手动/强制复制" : "微信输入法已运行，3 秒后触发跨设备同步");
         } else {
-            logLine("无线 ADB 地址已就绪，等待微信输入法启动后复制：" + address);
+            // 剪贴板是系统服务，不依赖任何输入法。没装/没运行微信输入法也要立即写入，
+            // 否则本机粘贴和第三方输入法的跨设备同步都会拿不到地址。
+            // forceCopy 轮询会多次走到这里，地址未变时不要重复写。
+            if (!address.equals(lastCopiedAddress)) {
+                copyAddress(address);
+                logLine("地址已写入系统剪贴板（微信输入法未运行，跨设备同步待其启动后补发）：" + address);
+            }
         }
     }
 
@@ -663,7 +669,7 @@ public final class WirelessAdbHook extends XposedModule {
     private static void scheduleCopyAfterWeTypeReady(String reason) {
         if (pendingAddress == null || copyScheduled) return;
         copyScheduled = true;
-        logLine(reason + "，等待 3 秒初始化跨设备粘贴服务");
+        logLine(reason + "，3 秒后复读剪贴板以触发跨设备同步");
         handler.postDelayed(() -> {
             String address = pendingAddress;
             pendingAddress = null;

@@ -96,68 +96,45 @@
                     android:orientation="horizontal">
 
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <LinearLayout
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="状态"
-                                android:textColor="@color/fl_on_surface_variant"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/status_title"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="8dp"
-                                android:background="@drawable/fl_pill"
-                                android:backgroundTint="@color/fl_running_bg"
-                                android:paddingStart="8dp"
-                                android:paddingTop="3dp"
-                                android:paddingEnd="8dp"
-                                android:paddingBottom="3dp"
-                                android:text="连接已就绪"
-                                android:textColor="@color/fl_running_fg"
-                                android:textSize="10sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="14dp"
-                            android:text="无线调试地址"
+                            android:text="状态"
                             android:textColor="@color/fl_on_surface_variant"
-                            android:textSize="11sp" />
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/address_view"
-                            android:layout_width="match_parent"
+                            android:id="@+id/status_title"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="3dp"
-                            android:fontFamily="monospace"
-                            android:maxLines="1"
-                            android:text="等待地址…"
-                            android:textColor="@color/fl_on_surface"
-                            android:textSize="23sp"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/fl_pill"
+                            android:backgroundTint="@color/fl_running_bg"
+                            android:paddingStart="8dp"
+                            android:paddingTop="3dp"
+                            android:paddingEnd="8dp"
+                            android:paddingBottom="3dp"
+                            android:text="连接已就绪"
+                            android:textColor="@color/fl_running_fg"
+                            android:textSize="10sp"
                             android:textStyle="bold" />
                     </LinearLayout>
+
+                    <Space
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
 
                     <FrameLayout
                         android:id="@+id/hero_action"
                         android:layout_width="62dp"
                         android:layout_height="62dp"
-                        android:layout_marginStart="12dp"
                         android:background="@drawable/fl_oval"
                         android:backgroundTint="@color/fl_accent"
                         android:clickable="true"
@@ -173,6 +150,46 @@
                             android:tint="@color/fl_on_accent" />
                     </FrameLayout>
                 </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="无线调试地址"
+                        android:textColor="@color/fl_on_surface_variant"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="点按复制"
+                        android:textColor="@color/fl_accent"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/address_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_marginTop="2dp"
+                    android:autoSizeMaxTextSize="23sp"
+                    android:autoSizeMinTextSize="14sp"
+                    android:autoSizeStepGranularity="1sp"
+                    android:autoSizeTextType="uniform"
+                    android:fontFamily="monospace"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:text="等待地址…"
+                    android:textColor="@color/fl_on_surface"
+                    android:textSize="23sp"
+                    android:textStyle="bold" />
 
                 <View
                     android:layout_width="match_parent"
@@ -480,72 +497,6 @@
                     android:visibility="gone" />
             </LinearLayout>
 
-            <!-- Section: quick actions -->
-            <LinearLayout
-                android:id="@+id/section_actions"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:layout_marginTop="22dp"
-                android:layout_marginEnd="16dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="15dp"
-                    android:layout_height="15dp"
-                    android:contentDescription="@null"
-                    android:src="@drawable/ic_zap"
-                    android:tint="@color/fl_icon" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:text="快捷操作"
-                    android:textColor="@color/fl_on_surface_variant"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:layout_marginTop="10dp"
-                android:layout_marginEnd="16dp"
-                android:background="@drawable/fl_round"
-                android:backgroundTint="@color/fl_surface"
-                android:orientation="vertical"
-                android:padding="10dp">
-
-                <include
-                    android:id="@+id/action_apply"
-                    layout="@layout/include_action_button"
-                    android:layout_width="match_parent"
-                    android:layout_height="64dp" />
-
-                <Space
-                    android:layout_width="1dp"
-                    android:layout_height="8dp" />
-
-                <include
-                    android:id="@+id/action_copy"
-                    layout="@layout/include_action_button"
-                    android:layout_width="match_parent"
-                    android:layout_height="64dp" />
-
-                <Space
-                    android:layout_width="1dp"
-                    android:layout_height="8dp" />
-
-                <include
-                    android:id="@+id/action_refresh"
-                    layout="@layout/include_action_button"
-                    android:layout_width="match_parent"
-                    android:layout_height="64dp" />
-            </LinearLayout>
-
             <!-- Section: log -->
             <LinearLayout
                 android:id="@+id/section_log"
@@ -578,19 +529,24 @@
                     android:layout_height="1dp"
                     android:layout_weight="1" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/fl_pill"
-                    android:backgroundTint="@color/fl_surface_variant"
-                    android:fontFamily="monospace"
-                    android:paddingStart="9dp"
-                    android:paddingTop="3dp"
-                    android:paddingEnd="9dp"
-                    android:paddingBottom="3dp"
-                    android:text="LOG"
-                    android:textColor="@color/fl_on_surface_variant"
-                    android:textSize="10sp" />
+                <FrameLayout
+                    android:id="@+id/log_refresh"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="@drawable/fl_oval"
+                    android:backgroundTint="@color/fl_surface"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="@drawable/fl_ripple_circle">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_refresh"
+                        android:tint="@color/fl_icon" />
+                </FrameLayout>
             </LinearLayout>
 
             <FrameLayout
@@ -627,7 +583,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="5dp"
-                        android:text="应用或刷新后，连接记录会在这里出现"
+                        android:text="开启或刷新后，连接记录会在这里出现"
                         android:textColor="@color/fl_on_surface_variant"
                         android:textSize="11sp" />
                 </LinearLayout>

@@ -40,12 +40,9 @@ public final class StatusActivity extends Activity {
     private View logEmpty;
     private ScrollView logScroll;
     private TextView logView;
-    private ImageView copyIcon;
-    private TextView copyLabel;
     private boolean copiedFlash;
 
     private ScrollView scroll;
-    private View applyBtn;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -93,56 +90,30 @@ public final class StatusActivity extends Activity {
         logScroll = findViewById(R.id.log_scroll);
         logView = findViewById(R.id.log_view);
 
-        View applyRoot = findViewById(R.id.action_apply);
-        View copyRoot = findViewById(R.id.action_copy);
-        View refreshRoot = findViewById(R.id.action_refresh);
-        applyBtn = applyRoot;
-        setupAction(applyRoot, R.drawable.ic_check_cyan, "立即应用",
-                "向 system_server 请求开启无线 ADB", v -> {
-                    sendBroadcast(new Intent("dev.wirelessadb.autostart.APPLY").setPackage("android"));
-                    setNotice("已请求立即应用");
-                    Toast.makeText(this, "已请求立即应用", Toast.LENGTH_SHORT).show();
-                    portInput.postDelayed(() -> refreshAll("记录已刷新"), 1500);
-                });
-        setupAction(copyRoot, R.drawable.ic_copy, "复制地址",
-                "把当前 IP:端口写入剪贴板", v -> {
-                    sendBroadcast(new Intent("dev.wirelessadb.autostart.REQUEST_COPY").setPackage("android"));
-                    flashCopied();
-                    setNotice("地址已复制");
-                    Toast.makeText(this, "已请求立即复制", Toast.LENGTH_SHORT).show();
-                    portInput.postDelayed(() -> refreshAll(null), 1200);
-                });
-        setupAction(refreshRoot, R.drawable.ic_refresh, "刷新记录",
-                "重新读取状态页与运行日志", v -> refreshAll("记录已刷新"));
+        // 地址整行点按即复制：这是唯一无条件立即写剪贴板的入口。
+        addressView.setOnClickListener(v -> {
+            v.animate().scaleX(0.98f).scaleY(0.98f).setDuration(70)
+                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f)
+                            .setDuration(70).start())
+                    .start();
+            sendBroadcast(new Intent("dev.wirelessadb.autostart.REQUEST_COPY").setPackage("android"));
+            flashCopied();
+            Toast.makeText(this, "地址已复制", Toast.LENGTH_SHORT).show();
+        });
 
+        // 闪电按钮：强制重新开启 adbd（同模式点 TLS/TCP 不会触发，这是唯一恢复入口）。
         findViewById(R.id.hero_action).setOnClickListener(v -> {
             v.animate().scaleX(0.9f).scaleY(0.9f).setDuration(80)
                     .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f)
                             .setDuration(80).start())
                     .start();
-            applyBtn.performClick();
+            sendBroadcast(new Intent("dev.wirelessadb.autostart.APPLY").setPackage("android"));
+            setNotice("已请求立即应用");
+            Toast.makeText(this, "已请求立即应用", Toast.LENGTH_SHORT).show();
+            portInput.postDelayed(() -> refreshAll(null), 1500);
         });
 
-        copyIcon = copyRoot.findViewById(R.id.action_icon);
-        copyLabel = copyRoot.findViewById(R.id.action_label);
-    }
-
-    private void setupAction(View root, int iconRes, String label, String sub,
-                             View.OnClickListener click) {
-        ImageView icon = root.findViewById(R.id.action_icon);
-        TextView text = root.findViewById(R.id.action_label);
-        TextView subView = root.findViewById(R.id.action_sub);
-        View btn = root;
-        icon.setImageResource(iconRes);
-        text.setText(label);
-        subView.setText(sub);
-        btn.setOnClickListener(v -> {
-            v.animate().scaleX(0.98f).scaleY(0.98f).setDuration(70)
-                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f)
-                            .setDuration(70).start())
-                    .start();
-            click.onClick(v);
-        });
+        findViewById(R.id.log_refresh).setOnClickListener(v -> refreshAll("记录已刷新"));
     }
 
     private void wireActions() {
@@ -257,12 +228,10 @@ public final class StatusActivity extends Activity {
 
     private void flashCopied() {
         copiedFlash = true;
-        copyIcon.setImageResource(R.drawable.ic_check_cyan);
-        copyLabel.setText("已复制");
-        copyLabel.postDelayed(() -> {
+        setNotice("地址已复制");
+        noticeChip.postDelayed(() -> {
             copiedFlash = false;
-            copyIcon.setImageResource(R.drawable.ic_copy);
-            copyLabel.setText("复制地址");
+            refreshAll(null);
         }, 1600);
     }
 
