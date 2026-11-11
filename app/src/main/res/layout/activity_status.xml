@@ -169,7 +169,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
-                        android:text="点按复制"
+                        android:text="点按复制 · 跨端粘贴需输入法支持"
                         android:textColor="@color/fl_accent"
                         android:textSize="10sp" />
                 </LinearLayout>
